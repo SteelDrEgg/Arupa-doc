@@ -32,7 +32,7 @@ metadata must provide the plugin name, version, type (`grpc` or `wasm`),
 contract version, and command. Files that are not `.plg` packages are ignored
 during a scan.
 
-See [Plugin configuration](/docs/arupa/v0/en/kernel/config-plugins) for
+See [Plugin configuration](./config-plugins) for
 automatic startup, execution users, access groups, and plugin parameters.
 
 ## Management API
@@ -115,4 +115,4 @@ the plugin manager initializes its extraction directory when it starts.
 Every endpoint in this page uses the Kernel's authentication middleware. An
 unauthenticated request is rejected before the handler runs. You can add a
 group restriction for these paths with `Route.Allow`; see [Access
-control](/docs/arupa/v0/en/kernel/config-access).
+control](./config-access).
