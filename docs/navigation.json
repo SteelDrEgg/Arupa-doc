@@ -1,0 +1,10 @@
+{
+  "products": [
+    {
+      "$ref": "arupa/navigation.json"
+    },
+    {
+      "$ref": "coreplugins/navigation.json"
+    }
+  ]
+}

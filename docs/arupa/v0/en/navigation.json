@@ -1,0 +1,19 @@
+{
+  "language": "en",
+  "default": true,
+  "pages": [
+    "docs/arupa/v0/en/quickstart",
+    {
+      "group": "Kernel",
+      "pages": [
+        "docs/arupa/v0/en/kernel"
+      ]
+    },
+    {
+      "group": "Plugin",
+      "pages": [
+        "docs/arupa/v0/en/plugin"
+      ]
+    }
+  ]
+}

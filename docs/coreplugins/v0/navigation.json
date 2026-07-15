@@ -1,0 +1,9 @@
+{
+  "version": "v0",
+  "default": true,
+  "languages": [
+    {
+      "$ref": "en/navigation.json"
+    }
+  ]
+}

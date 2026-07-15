@@ -1,0 +1,9 @@
+{
+  "product": "Coreplugins",
+  "icon": "puzzle-piece",
+  "versions": [
+    {
+      "$ref": "v0/navigation.json"
+    }
+  ]
+}

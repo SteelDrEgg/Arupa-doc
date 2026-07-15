@@ -1,0 +1,9 @@
+{
+  "product": "Arupa",
+  "icon": "cube",
+  "versions": [
+    {
+      "$ref": "v0/navigation.json"
+    }
+  ]
+}
