@@ -14,7 +14,7 @@
   "logo": {
     "light": "/logo/Arupa.svg",
     "dark": "/logo/Arupa-white.svg",
-    "href": "/docs/arupa/v0/en/quickstart"
+    "href": "/"
   },
   "navbar": {
     "links": [
