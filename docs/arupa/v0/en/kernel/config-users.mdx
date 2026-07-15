@@ -20,6 +20,28 @@ Arupa stores bcrypt password hashes rather than plain-text passwords. The
 username is the key used during login and when Arupa resolves the identity of
 an authenticated request.
 
+### Add or update a user from the CLI
+
+You can create a user or update an existing user's password with the Arupa
+binary:
+
+```bash
+./arupa -user admin -password 'admin'
+```
+
+The command uses `config.toml` in the current directory by default. It writes a
+bcrypt password hash to the `Users` table and exits after updating the
+configuration; it does not start the server.
+
+Use `-config` to select another configuration file:
+
+```bash
+./arupa -config /path/to/config.toml -user admin -password 'admin'
+```
+
+The `-user` and `-password` flags must be provided together, and the password
+must not be empty.
+
 ## `Groups`
 
 The `Groups` table maps a group name to a list of usernames:

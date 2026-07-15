@@ -1,0 +1,31 @@
+---
+title: "Install Arupa"
+description: "Install the Arupa Kernel, then add the core plugins you need."
+---
+
+Arupa consists of two parts: the Kernel and plugins. The Kernel provides the
+server runtime. Plugins add the management features that run on it.
+
+Install the Kernel first. Then get the core plugins you need and add them to
+your Kernel installation.
+
+## 1. Install the Kernel
+
+Choose the installation method that fits your environment:
+
+<CardGroup cols={2}>
+  <Card title="Install from a binary" icon="file-binary" href="./installation-binary">
+    Run a released Kernel binary on Linux or macOS.
+  </Card>
+
+  <Card title="Install with Docker" icon="docker" href="./installation-docker">
+    Run the Kernel in a Docker container.
+  </Card>
+</CardGroup>
+
+## 2. Get core plugins
+
+After the Kernel is installed, choose and obtain the plugins that provide the
+features you need. Start with the [Coreplugins documentation](../../../../coreplugins/v0/en/index).
+
+To add downloaded plugin packages to a running Kernel, see [Install a plugin](./plugins#install-a-plugin).

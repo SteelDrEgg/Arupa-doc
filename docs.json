@@ -12,8 +12,8 @@
     "$ref": "docs/navigation.json"
   },
   "logo": {
-    "light": "/logo/Arupa.svg",
-    "dark": "/logo/Arupa-white.svg",
+    "light": "/logo/Arupa-full.svg",
+    "dark": "/logo/Arupa-full-white.svg",
     "href": "/"
   },
   "navbar": {
@@ -39,7 +39,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/SteelDrEgg/arupa",
+      "github": "https://github.com/SteelDrEgg/arupa"
     }
   }
 }

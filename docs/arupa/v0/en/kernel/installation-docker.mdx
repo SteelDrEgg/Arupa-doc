@@ -1,0 +1,181 @@
+---
+title: "Install with Docker"
+description: "Run the Arupa Kernel in a Docker container."
+---
+
+Use Docker when you want the Arupa Kernel and its runtime dependencies to run
+inside a container. The image is published at
+[`ghcr.io/steeldregg/arupa`](https://ghcr.io/steeldregg/arupa).
+
+The container stores its configuration, plugin packages, and temporary plugin
+files in `/data`. This guide uses a Docker named volume so those files remain
+available when you replace the container.
+
+## Before you begin
+
+Install Docker Engine or Docker Desktop, then make sure the Docker CLI can
+contact the Docker daemon:
+
+```sh
+docker version
+```
+
+The published image supports Linux `amd64` and `arm64` hosts. Docker selects
+the correct image variant for your host automatically.
+
+## 1. Pull the image
+
+Download the latest stable image:
+
+```sh
+docker pull ghcr.io/steeldregg/arupa:latest
+```
+
+For a repeatable deployment, use a release tag instead of `latest`. For
+example, to use version `v0.2.0`:
+
+```sh
+docker pull ghcr.io/steeldregg/arupa:v0.2.0
+```
+
+## 2. Create persistent storage
+
+Create a Docker named volume for the Kernel data:
+
+```sh
+docker volume create arupa-data
+```
+
+Docker keeps this volume after the container is removed. It will hold:
+
+- `config.toml`, the Kernel configuration file;
+- `plugins`, the directory for `.plg` plugin packages; and
+- `tmp`, the directory used while the Kernel loads plugin packages.
+
+To print the volume's storage location, run:
+
+```sh
+docker volume inspect --format '{{ .Mountpoint }}' arupa-data
+```
+
+On a Linux Docker host, the result is a host directory such as
+`/var/lib/docker/volumes/arupa-data/_data`. You can inspect or edit that
+directory with the required host permissions. On Docker Desktop, the mount
+point is inside Docker's Linux VM, so you normally cannot open it directly
+from macOS or Windows. Use the `docker cp` commands later in this guide on
+those systems.
+
+## 3. Create the initial configuration
+
+Create a working directory for the configuration file, then create
+`config.toml` in it:
+
+```sh
+mkdir -p ~/arupa-docker
+cd ~/arupa-docker
+nano config.toml
+```
+
+Add the following configuration:
+
+```toml
+Listen = ":8080"
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+`Listen` is the HTTP and Socket.IO address inside the container. `PluginDir`
+and `PluginTempDir` are relative to `/data`, which is the container's working
+directory.
+
+## 4. Create and start the container
+
+Create the container. The `--publish` option makes the container's port 8080
+available at port 8080 on your host. The named volume is mounted at `/data`.
+
+```sh
+docker create \
+  --name arupa \
+  --publish 8080:8080 \
+  --volume arupa-data:/data \
+  ghcr.io/steeldregg/arupa:latest
+```
+
+Copy the configuration file into the volume through the newly created
+container, then start it:
+
+```sh
+docker cp config.toml arupa:/data/config.toml
+docker start arupa
+```
+
+Watch the Kernel logs:
+
+```sh
+docker logs --follow arupa
+```
+
+The Kernel reports that it is listening on `:8080` when startup succeeds.
+Press `Control-C` to stop following the logs; this does not stop the
+container.
+
+## 5. Verify the Kernel
+
+From another terminal, request the Kernel version endpoint:
+
+```sh
+curl http://127.0.0.1:8080/api/kernel/version
+```
+
+The response includes the running Kernel version.
+
+## Edit configuration and add plugin packages
+
+The named volume holds both the configuration and plugin packages. The
+following commands work on Linux, macOS, and Windows with Docker Desktop.
+
+To edit the configuration, copy it out of the container, edit the local copy,
+copy it back, and restart the Kernel:
+
+```sh
+docker cp arupa:/data/config.toml ~/arupa-docker/config.toml
+nano ~/arupa-docker/config.toml
+docker cp ~/arupa-docker/config.toml arupa:/data/config.toml
+docker restart arupa
+```
+
+To add a downloaded plugin package, copy its `.plg` file into `/data/plugins`.
+For example:
+
+```sh
+docker cp ~/Downloads/example.plg arupa:/data/plugins/example.plg
+docker restart arupa
+```
+
+On a Linux Docker host, you can instead copy the package directly to the
+`plugins` directory beneath the `Mountpoint` reported by `docker volume
+inspect arupa-data`. Restart the container after changing plugin files so the
+Kernel scans the directory again.
+
+## Manage the container
+
+Use these commands to stop, start, or remove the Kernel container:
+
+```sh
+docker stop arupa
+docker start arupa
+docker rm arupa
+```
+
+Removing the container does not remove the `arupa-data` volume. When you
+create a replacement container with the same `--volume arupa-data:/data`
+option, it reuses the existing configuration and plugin data.
+
+## Next steps
+
+The Kernel is ready for plugin packages. Continue with the [Coreplugins
+documentation](../../../../coreplugins/v0/en/index), then follow [Install a
+plugin](./plugins#install-a-plugin).
+
+Before exposing the host port outside your local machine, configure [users](./config-users)
+and [access rules](./config-access).

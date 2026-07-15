@@ -1,0 +1,129 @@
+---
+title: "Install from a binary"
+description: "Install and start the Arupa Kernel from a released binary on Linux or macOS."
+---
+
+Use this method to run the Arupa Kernel directly on a Linux or macOS host.
+The release contains one executable file. It does not include a configuration
+file or plugins, so you create the Kernel directory and its initial files in
+the following steps.
+
+## Before you begin
+
+Released binaries are available for Linux and macOS on both `amd64` and
+`arm64` processors. Windows is not currently a binary release target.
+
+Find your operating system and processor architecture before downloading a
+release:
+
+```sh
+uname -s
+uname -m
+```
+
+Choose the matching release asset:
+
+| `uname -s` | `uname -m` | Release asset suffix |
+| --- | --- | --- |
+| `Darwin` | `arm64` | `darwin-arm64` |
+| `Darwin` | `x86_64` | `darwin-amd64` |
+| `Linux` | `aarch64` | `linux-arm64` |
+| `Linux` | `x86_64` | `linux-amd64` |
+
+## 1. Download the Kernel
+
+Open the [Arupa releases page](https://github.com/SteelDrEgg/Arupa/releases).
+Select a release, then download the asset whose suffix matches your system.
+
+Release files use this format:
+
+```text
+arupa-v<version>-<operating-system>-<architecture>
+```
+
+For example, an Apple silicon Mac running version `v0.2.0` uses:
+
+```text
+arupa-v0.2.0-darwin-arm64
+```
+
+## 2. Create the Kernel directory
+
+Keep the executable, configuration, plugin packages, and temporary extraction
+files together in one directory. The following commands create an `arupa`
+directory in your home directory and move the example download into it:
+
+```sh
+mkdir -p ~/arupa
+mv ~/Downloads/arupa-v0.2.0-darwin-arm64 ~/arupa/arupa
+cd ~/arupa
+```
+
+If you downloaded a different release asset, replace only the source file name
+in the `mv` command. The final name, `arupa`, is the executable you will run.
+
+## 3. Allow the binary to run
+
+Make the downloaded file executable, then confirm that it runs:
+
+```sh
+chmod +x arupa
+./arupa -version
+```
+
+The command prints the installed Kernel version. If macOS prevents the binary
+from opening, review the security prompt and allow the application in
+**System Settings** only after confirming that you downloaded it from the
+official release page.
+
+## 4. Create the initial configuration
+
+The Kernel reads a TOML configuration file. Create the two directories used by
+the default plugin settings:
+
+```sh
+mkdir plugins
+mkdir tmp
+```
+
+Create a file named `config.toml` in `~/arupa` and add the following content:
+
+```toml
+Listen = ":8080"
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+`Listen` is the address and port where the Kernel accepts HTTP and Socket.IO
+connections. `PluginDir` holds downloaded `.plg` plugin packages. The Kernel
+uses `PluginTempDir` while it loads those packages. These relative paths are
+resolved from `~/arupa`, because that is the directory where you run the
+Kernel.
+
+## 5. Start and verify the Kernel
+
+Start the Kernel from `~/arupa`:
+
+```sh
+./arupa -config config.toml
+```
+
+Leave this terminal running. In another terminal, verify that the Kernel is
+responding:
+
+```sh
+curl http://127.0.0.1:8080/api/kernel/version
+```
+
+The response includes the Kernel version. Press `Control-C` in the first
+terminal to stop the Kernel.
+
+## Next steps
+
+The Kernel is now ready for plugin packages. Continue with the [Coreplugins
+documentation](../../../../coreplugins/v0/en/index), then follow [Install a
+plugin](./plugins#install-a-plugin) to add a package to the `plugins`
+directory.
+
+Before exposing the Kernel outside your local machine, configure [users](./config-users)
+and [access rules](./config-access).
