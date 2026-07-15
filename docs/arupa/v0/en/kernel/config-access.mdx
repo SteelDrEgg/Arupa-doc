@@ -1,0 +1,190 @@
+---
+title: "Access control"
+description: "Understand how Arupa authenticates users and evaluates access policies."
+---
+
+Arupa evaluates access in layers. The Kernel first resolves the identity of the
+requesting user, then applies the policies that protect the host path, the
+plugin, and the specific plugin resource.
+
+Every layer that applies to a request must allow it. A more specific policy
+does not override a broader restriction, and a plugin cannot use its own
+resource policy to bypass `Route.Allow` or `Plugin.Allow`.
+
+## Access layers
+
+| Layer | Defined by | Protects |
+| --- | --- | --- |
+| User identity | `Users` and `Groups` | The identity and group membership attached to a request |
+| Host route | `Route.Allow` in `config.toml` | An HTTP path before it reaches a host or plugin handler |
+| Plugin | `Allow` under `Plugins.<name>` | Every HTTP route, static mount, namespace, and event owned by a plugin |
+| Plugin resource | The plugin's registration data | One HTTP route, static mount, Socket.IO namespace, or event |
+
+The first three layers are configured by the Kernel configuration. The last
+layer is declared by the plugin when it registers its resources.
+
+## User identity
+
+For HTTP requests, the Kernel checks the `arupa-auth` session cookie first and
+then the `Authorization` header. A valid session resolves to a username. The
+Kernel looks up that username in `Groups` and creates a host-verified identity
+containing:
+
+- the username;
+- the groups that contain that username; and
+- the `Authenticated` state.
+
+An invalid or missing session produces an unauthenticated identity. The Kernel
+does not send a user object to a plugin for an unauthenticated request.
+
+Socket.IO performs the same identity resolution during its handshake, using a
+session cookie or an `Authorization` header.
+
+## Policy semantics
+
+All access checks use the same policy model:
+
+```text
+AccessPolicy {
+  RequireAuth: true or false
+  Groups:      a list of group names
+}
+```
+
+The result is determined as follows:
+
+- An empty policy is public. It allows unauthenticated users.
+- `RequireAuth = true` with no groups allows any authenticated user.
+- A non-empty `Groups` list requires authentication and membership in at least
+  one listed group.
+- A user who is authenticated but belongs to none of the listed groups is
+  forbidden.
+
+The group list is an **OR** list. For example, `Groups = ["root", "staff"]`
+allows a user in `root` or `staff`; the user does not need to belong to both
+groups.
+
+The two rejection states are different:
+
+- An unauthenticated request is an authentication failure and produces `401
+  Unauthorized`.
+- An authenticated user who does not satisfy the group requirement is an
+  authorization failure and produces `403 Forbidden`.
+
+## Host route access
+
+`Route.Allow` protects HTTP paths before the request reaches either a host
+handler or a plugin handler:
+
+```toml
+[Route.Allow]
+  "/api/plugins/launch" = ["root"]
+  "/api/admin/" = ["root"]
+```
+
+The map value is a list of groups. A request is allowed when the authenticated
+user belongs to at least one group in the list.
+
+The `Route.Allow` map uses the Kernel's shared path-pattern implementation. A
+normal path is an exact match, while a pattern ending in `/` matches that path
+subtree. The `/*` is not a valid configuration; it doesn't support wildcard.
+
+When multiple `Route.Allow` patterns match, the longest matching pattern wins.
+The Kernel does not combine groups from multiple matching patterns. See
+[Route](./route) for the complete path-pattern rules,
+root-path behavior, and validation details.
+
+If no rule matches, `Route.Allow` does not restrict the request. If a matching
+rule has an empty group list, its policy is also effectively public because an
+empty access policy allows everyone; an empty list does not mean “deny all”.
+
+`Route.Allow` is evaluated for every HTTP request by the outer auth middleware.
+When it rejects a request, it returns the normal JSON `401` or `403` response.
+It does not use the configured `Pages` redirect. See [Pages](./config-pages)
+for browser redirects used by plugin-protected resources.
+
+## Plugin-wide access
+
+`Allow` under `[Plugins.<name>]` applies to the plugin as a whole:
+
+```toml
+[Plugins.hello]
+  Allow = ["staff"]
+```
+
+This policy is checked before a request or event reaches any resource owned by
+the plugin. It applies to:
+
+- the plugin's HTTP routes;
+- the plugin's static file mounts;
+- connections to the plugin's Socket.IO namespaces; and
+- events received in those namespaces.
+
+An empty `Allow` list leaves the plugin open at this layer. A non-empty list
+requires the user to belong to at least one of the listed groups.
+
+`[Plugins.default]` provides the base plugin configuration. A non-empty
+`Allow` list in `[Plugins.<name>]` replaces the default group list for that
+plugin. If the per-plugin list is omitted or empty, the current implementation
+keeps the default list.
+
+The plugin policy is refreshed when the Kernel reloads its configuration, so a
+loaded plugin uses the updated group list for subsequent requests and events.
+
+## Plugin resource access
+
+Plugins can add another policy when they register a resource. These policies
+are not written in `config.toml`; they are part of the plugin's registration
+contract.
+
+An HTTP route and a static mount each have their own `Access` policy. The
+Kernel checks the plugin-wide policy first and the resource policy second:
+
+```text
+plugin Allow -> HTTP route Access
+plugin Allow -> static mount Access
+```
+
+For Socket.IO, the checks are applied at two levels:
+
+```text
+connect: plugin Allow -> namespace Access
+event:   plugin Allow -> namespace Access -> event Access
+```
+
+An event policy is optional. If a namespace does not define a policy for an
+event, the namespace policy still applies, but there is no additional event
+check. Events that the plugin did not declare are ignored.
+
+Because every check must pass, the effective permission is the intersection of
+the applicable layers. For example, a user must be in both `staff` from
+`Plugin.Allow` and `operators` from a route's `Access.Groups` to reach that
+route.
+
+## Example
+
+With the following configuration:
+
+```toml
+[Users]
+  admin = "..."
+
+[Groups]
+  root = ["admin"]
+  staff = ["alice"]
+
+[Route.Allow]
+  "/api/plugins" = ["root"]
+
+[Plugins.hello]
+  Allow = ["staff"]
+```
+
+The `admin` user can pass the `/api/plugins` host-route rule because they are
+in `root`. `alice` is authenticated but receives `403 Forbidden` for that
+path because they are not in `root`. An unauthenticated request receives
+`401 Unauthorized`.
+
+The same `admin` user cannot access any resource protected by the `hello`
+plugin's `Allow = ["staff"]` because `admin` is not in `staff`. Being
+authenticated is not enough when a policy names groups.

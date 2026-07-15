@@ -1,0 +1,118 @@
+---
+title: "Plugins"
+description: "Install and manage Arupa plugins through the plugin directory and API."
+---
+
+The Kernel discovers plugins from `PluginDir`. A plugin package is a `.plg`
+file. The Kernel scans that directory, reads each package's `info.yaml`, and
+uses the plugin configuration to decide whether to start it.
+
+## Install a plugin
+
+Arupa does not upload plugin packages through the management API. To install a
+plugin:
+
+1. Place its `.plg` package in the configured `PluginDir`.
+2. Make sure the Kernel can write to `PluginTempDir`, which it uses while
+   loading plugin packages.
+3. Scan the directory through the API, or restart Arupa so it scans the
+   directory during startup.
+4. Start the plugin if its effective `Restart` setting does not enable
+   automatic startup.
+
+The default directories are:
+
+```toml
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+The package must be a valid plugin archive with a root-level `info.yaml`. That
+metadata must provide the plugin name, version, type (`grpc` or `wasm`),
+contract version, and command. Files that are not `.plg` packages are ignored
+during a scan.
+
+See [Plugin configuration](/docs/arupa/v0/en/kernel/config-plugins) for
+automatic startup, execution users, access groups, and plugin parameters.
+
+## Management API
+
+All plugin management endpoints are under `/api/plugins` and require an
+authenticated user. They return the standard JSON response shape used by
+Arupa: `success`, `message`, and `data`.
+
+### List plugin state
+
+```http
+GET /api/plugins
+```
+
+The response includes the configured `plugin_dir` and `plugin_temp_dir`, a
+`discovered` list, and a `running` list. Discovered entries include package
+metadata, effective configuration, and lifecycle status. Running entries
+include the resources registered by each running plugin.
+
+### Scan the plugin directory
+
+```http
+POST /api/plugins/scan
+```
+
+This scans the current `PluginDir` and refreshes the discovered plugin list. It
+does not start plugins automatically. The response includes the scan path and
+the discovered plugin count.
+
+### Start, stop, or restart a plugin
+
+Use the same request body for all three actions:
+
+```http
+POST /api/plugins/start
+POST /api/plugins/stop
+POST /api/plugins/restart
+Content-Type: application/json
+
+{"name":"hello"}
+```
+
+- `start` starts a previously scanned plugin by name.
+- `stop` unloads a running plugin and removes its live host bindings.
+- `restart` stops the running instance, then loads the latest scanned package
+  for that plugin name.
+
+The `name` field is required. These actions do not accept a package path; the
+plugin must already be present in the scan results.
+
+### Read plugin directory configuration
+
+```http
+GET /api/plugins/config
+```
+
+The response returns the current `plugin_dir` and `plugin_temp_dir`.
+
+### Update plugin directory configuration
+
+```http
+PUT /api/plugins/config
+Content-Type: application/json
+
+{
+  "plugin_dir": "plugins",
+  "plugin_temp_dir": "tmp"
+}
+```
+
+Both fields are required. The API creates the directories before saving the
+configuration, updates the manager, and scans the new plugin directory.
+
+Changing `plugin_dir` takes effect for scanning immediately. Changing
+`plugin_temp_dir` is reported with `temp_dir_requires_restart: true` because
+the plugin manager initializes its extraction directory when it starts.
+
+## Authentication and access
+
+Every endpoint in this page uses the Kernel's authentication middleware. An
+unauthenticated request is rejected before the handler runs. You can add a
+group restriction for these paths with `Route.Allow`; see [Access
+control](/docs/arupa/v0/en/kernel/config-access).

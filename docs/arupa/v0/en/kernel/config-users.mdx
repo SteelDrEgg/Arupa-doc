@@ -1,0 +1,39 @@
+---
+title: "Users and groups"
+description: "Define Arupa users and organize them into groups."
+---
+
+Arupa stores users and group membership in the configuration file. Users
+provide the identities that can sign in to Arupa, while groups organize those
+identities for the rest of the system.
+
+## `Users`
+
+The `Users` table maps each username to its password hash:
+
+```toml
+[Users]
+  admin = "<bcrypt password hash>"
+```
+
+Arupa stores bcrypt password hashes rather than plain-text passwords. The
+username is the key used during login and when Arupa resolves the identity of
+an authenticated request.
+
+## `Groups`
+
+The `Groups` table maps a group name to a list of usernames:
+
+```toml
+[Groups]
+  root = ["admin"]
+  staff = ["alice", "bob"]
+```
+
+A user can belong to more than one group. After authentication, the Kernel
+looks up the user's groups and makes that membership available to the host and
+the plugins.
+
+Users and groups describe who a user is and which groups they belong to. They
+do not grant access by themselves. To learn how groups are used in access
+rules, see [Access control](./config-access).

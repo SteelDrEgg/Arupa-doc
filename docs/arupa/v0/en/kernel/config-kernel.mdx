@@ -1,0 +1,46 @@
+---
+title: "Kernel"
+description: "Configure the address and directories required by the Arupa Kernel."
+---
+
+The Kernel needs a small set of settings before it can start its server and
+plugin system. These settings are defined at the top level of the TOML
+configuration file:
+
+```toml
+Listen = ":8080"
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+## `Listen`
+
+`Listen` is the network address where the Kernel starts its HTTP server. The
+default value, `:8080`, listens on port `8080` on all local interfaces.
+
+You can provide a specific host and port when the server should listen on a
+particular interface:
+
+```toml
+Listen = "127.0.0.1:8080"
+```
+
+## `PluginDir`
+
+`PluginDir` is the directory that the Kernel scans for `.plg` plugin packages.
+The plugin manager uses this directory to discover the plugins available to
+Arupa.
+
+The path can be absolute or relative to the process working directory. In the
+example configuration, `plugins` means a `plugins` directory next to the
+directory from which Arupa is started.
+
+## `PluginTempDir`
+
+`PluginTempDir` is the writable temporary directory used while the Kernel
+loads plugins. Arupa extracts plugin packages into this directory before it
+starts them.
+
+The directory must be writable by the Arupa process. It is separate from
+`PluginDir`: keep the original `.plg` packages in `PluginDir`, and use
+`PluginTempDir` for the Kernel's extracted runtime files.

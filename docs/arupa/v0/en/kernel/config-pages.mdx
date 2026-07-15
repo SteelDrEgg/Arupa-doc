@@ -1,0 +1,34 @@
+---
+title: "Pages"
+description: "Configure the pages used by browser-facing Kernel flows."
+---
+
+The `Pages` section associates an HTTP status code with a URL path:
+
+```toml
+[Pages]
+  401 = "/pages/login.html"
+```
+
+The Kernel looks up the path for a status code when it needs to decide whether
+a browser request should be redirected to another page. The value must be a
+local URL path that starts with `/`. Absolute URLs such as
+`https://example.com/login` and protocol-relative URLs such as
+`//example.com/login` are rejected.
+
+## Browser requests
+
+The Kernel uses a configured page only for a browser-style `GET` request. The
+request must not target `/api` or a path under `/api`, and its `Accept` header
+must either be empty or contain `text/html`.
+
+When these conditions are not met, the request keeps the normal API or HTTP
+response instead of being redirected. If the request already has the
+configured page path, the Kernel also leaves it unchanged so that the page
+does not redirect to itself. Redirects use HTTP `303 See Other`.
+
+## Uses
+
+The mapping acts as a navigation mechanism for request flows.
+It handles behaviors such as redirect unauthenticated users to login page when request a protected route,
+or show a `404` page when the plugin router cannot find a matching route or static mount.
