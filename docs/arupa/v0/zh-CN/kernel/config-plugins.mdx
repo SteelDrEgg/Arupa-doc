@@ -1,0 +1,126 @@
+---
+title: "插件配置"
+description: "配置插件的启动、执行、访问权限和参数。"
+---
+
+`[Plugins]` 部分控制内核如何发现和运行每个插件。
+插件通过其包元数据中声明的名称进行标识。
+加载插件时，将使用该名称对应的配置。
+
+```toml
+[Plugins]
+    [Plugins.default]
+    Restart = "no"
+    RunAsUser = ""
+    [Plugins.hello]
+    Restart = "no"
+    RunAsUser = ""
+    Allow = ["staff"]
+    [Plugins.hello.Params]
+    greeting = "env://HIHI?"
+```
+
+## 默认配置
+
+`[Plugins.default]` 为已发现的插件提供基本配置。
+一个`[Plugins.<name>]` 表会在此基本配置之上进行合并，
+从而生成一个插件的有效配置。
+
+合并规则如下：
+
+- 非空的 `Restart` 值会替换默认值；
+- 非空的 `RunAsUser` 值会替换默认值
+- 非空的 `Allow` 列表会替换默认的组列表；以及
+- `Params` 按键合并，插件级别的值优先。
+
+插件级别的空值或省略的值不会清除这些字段的继承默认值。
+特别地，在当前实现中，设置 `Allow = []` 不会移除非空的默认 `Allow` 列表。
+
+只有名称匹配的插件才能获得其命名配置。如果名称出现在 `[Plugins]` 中，但在 `PluginDir` 中找不到匹配的包，
+内核会在扫描过程中报告该已配置的插件缺失。
+
+## `Restart`
+
+尽管名称如此，`Restart` 目前控制的是插件是否在内核启动时自动启动。
+这并非一般的崩溃重启循环。
+以下值启用自动启动，忽略大小写和周围的空格：
+
+```text
+always, yes, true, on, enable, enabled, 1
+```
+
+其他值，包括 `no`、`false` 和 `off`，禁用自动启动。
+
+即使插件已被禁用，插件管理器仍然可以发现它，
+并且可以通过显式的管理操作启动它。
+
+更改配置中的 `Restart` 值本身并不会启动或停止
+正在运行的插件。它用于内核在启动序列中决定启动哪些已发现的插件。
+
+## `RunAsUser`
+
+`RunAsUser` 选择用于运行 gRPC 插件进程的操作系统用户。
+
+空值表示插件以当前 Arupa 进程用户的身份运行。
+
+```toml
+[Plugins.ssh]
+RunAsUser = "arupa-plugin"
+```
+
+此设置适用于 gRPC 插件进程。内核必须拥有以所选用户身份启动进程所需的操作系统权限。
+如果将此值留空，内核将不会切换用户。
+
+## `Allow`
+
+`Allow` 是插件级别的访问限制。它包含来自 [`Groups`](./config-users) 配置的组名称：
+
+```toml
+[Plugins.hello]
+Allow = ["staff"]
+```
+
+空列表表示插件在此层保持开放。
+非空列表允许至少属于一个已列出组的用户访问。
+此策略适用于插件拥有的每个资源，
+包括 HTTP 路由、静态挂载、Socket.IO命名空间和事件。
+
+插件级别的访问控制与主机路由规则和资源级别的策略相结合。
+所有适用的策略都必须允许此请求。有关完整的权限模型，请参阅[访问控制](./config-access)。
+
+## `Params`
+
+`Params` 包含在注册期间传递给插件的任意字符串设置：
+
+```toml
+[Plugins.hello.Params]
+greeting = "hello"
+endpoint = "https://example.com"
+```
+
+`[Plugins.default.Params]` 中的参数构成基础。
+`[Plugins.<name>.Params]` 中的键会覆盖匹配的默认键，
+而不相关的默认键仍然对插件可用。
+
+### 环境引用
+
+参数值可以引用环境变量，而不是直接将值存储在 `config.toml` 中：
+
+```toml
+[Plugins.hello.Params]
+required_secret = "env://ARUPA_SECRET"
+optional_label = "env://ARUPA_LABEL?"
+```
+
+内核在插件注册时解析这些引用：
+
+- `env://NAME` 要求环境变量必须存在。如果环境变量不存在，
+插件加载将失败。
+- `env://NAME?` 是可选的。如果环境变量不存在，
+插件将收到一个空字符串。
+- 不带 `env://` 前缀的值将原封不动地传递。
+`?` 必须是引用的最后一个字符，并且环境变量名称周围不能包含空格。
+
+## 配置更改
+
+内核可以在不重建 HTTP 服务器的情况下重新加载插件配置。重新加载会更新插件管理器持有的有效配置，并刷新已加载插件的 `Allow` 组。对 `Params`、`RunAsUser` 或启动行为的更改将在插件下次加载或启动时生效；它们不会重写已运行的插件进程。

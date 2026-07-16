@@ -1,0 +1,179 @@
+---
+title: "使用 Docker 安装"
+description: "在 Docker 容器中运行 Arupa 内核。"
+---
+
+如果您希望 Arupa 内核及其运行时依赖项在容器内运行，请使用 Docker。
+
+该镜像发布于[`ghcr.io/steeldregg/arupa`](https://ghcr.io/steeldregg/arupa)。
+
+容器会将配置、插件包和临时插件文件存储在 `/data` 目录中。本指南使用 Docker 命名卷，以便在替换容器后，这些文件仍然可用。
+
+
+## 开始之前
+
+请先安装 Docker Engine 或 Docker Desktop，然后确保 Docker CLI 可以连接到 Docker 守护进程：
+
+```sh
+docker version
+```
+
+发布的镜像支持 Linux `amd64` 和 `arm64` 主机。Docker 会自动选择适合您主机的镜像版本。
+
+## 1. 拉取镜像
+
+下载最新的稳定镜像：
+
+```sh
+docker pull ghcr.io/steeldregg/arupa:latest
+```
+
+为了确保部署可重复，请使用发布版本标签（release tag）而不是 `latest`。例如，要使用 `v0.2.0` 版本：
+
+```sh
+docker pull ghcr.io/steeldregg/arupa:v0.2.0
+```
+
+## 2. 创建持久存储
+
+为内核数据创建一个名为 `arupa-data` 的 Docker 卷：
+```sh
+docker volume create arupa-data
+```
+
+容器移除后，Docker 会保留此卷。它将包含：
+- `config.toml`，内核配置文件
+- `plugins`，`.plg` 插件包的目录
+- `tmp`，内核加载插件包时使用的目录
+
+要打印卷的存储位置，请运行：
+
+```sh
+docker volume inspect --format '{{ .Mountpoint }}' arupa-data
+```
+
+在 Linux Docker 主机上，结果会生成一个主机目录，例如：
+`/var/lib/docker/volumes/arupa-data/_data`。您可以使用所需的主机权限检查或编辑该目录。
+
+在 Docker Desktop 上，挂载点位于 Docker 的 Linux 虚拟机内部，因此通常无法直接从 macOS 或 Windows 打开它。
+
+请在后续的 macOS 或 Windows 系统中使用 `docker cp` 命令。
+
+## 3. 创建初始配置
+
+创建一个用于存放配置文件的工作目录，然后在其中创建
+
+`config.toml` 文件：
+
+```sh
+mkdir -p ~/arupa-docker
+cd ~/arupa-docker
+nano config.toml
+```
+
+添加以下配置：
+
+```toml
+Listen = ":8080"
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+`Listen` 是容器内部的 HTTP 和 Socket.IO 地址。
+
+`PluginDir` 和 `PluginTempDir` 相对于容器的工作目录 `/data`。
+
+4. 创建并启动容器
+
+`--publish` 选项使容器的 8080 端口在主机上的 8080 端口可用。
+命名卷挂载在 `/data`。
+
+```sh
+docker create \
+--name arupa \
+--publish 8080:8080 \
+--volume arupa-data:/data \
+ghcr.io/steeldregg/arupa:latest
+
+```
+
+通过新创建的容器将配置文件复制到卷中
+
+然后启动它：
+
+```sh
+docker cp config.toml arupa:/data/config.toml
+docker start arupa
+```
+
+查看内核日志：
+
+```sh
+docker logs --follow arupa
+```
+
+启动成功后，内核会报告正在监听 `:8080` 端口。
+
+按 `Ctrl-C` 停止查看日志；这不会停止容器。
+
+## 5. 验证内核
+
+从另一个终端请求内核版本端点：
+
+```sh
+curl http://127.0.0.1:8080/api/kernel/version
+```
+
+响应包含正在运行的内核版本。
+
+## 编辑配置并添加插件包
+
+指定的卷包含配置和插件包。
+
+以下命令适用于 Linux、macOS 和 Windows 系统，并支持 Docker Desktop。
+
+要编辑配置，请将其复制到容器外，编辑本地副本，然后将其复制回来，并重启内核：
+
+```sh
+docker cp arupa:/data/config.toml ~/arupa-docker/config.toml
+nano ~/arupa-docker/config.toml
+docker cp ~/arupa-docker/config.toml arupa:/data/config.toml
+docker restart arupa
+```
+
+要添加已下载的插件包，请将其 `.plg` 文件复制到 `/data/plugins` 目录。
+
+例如：
+
+```sh
+
+docker cp ~/Downloads/example.plg arupa:/data/plugins/example.plg
+
+docker restart arupa
+
+```
+
+在 Linux Docker 主机上，您也可以直接将软件包复制到 `docker volume
+
+inspect arupa-data` 报告的 `Mountpoint` 下的 `plugins` 目录。更改插件文件后，请重启容器，以便
+内核再次扫描目录。
+
+## 管理容器
+
+使用以下命令停止、启动或删除内核容器：
+
+```sh
+docker stop arupa
+docker start arupa
+docker rm arupa
+```
+
+删除容器不会删除 `arupa-data` 卷。当您使用相同的 `--volume arupa-data:/data` 选项创建替换容器时，
+它会重用现有的配置和插件数据。
+
+## 后续步骤
+
+内核已准备好安装插件包。请继续阅读[Coreplugins文档](../../../../coreplugins/v0/en/index)，
+然后按照[安装插件](./plugins#install-a-plugin)的步骤操作。
+
+在将主机端口暴露到本地计算机外部之前，请配置[用户](./config-users)和[访问规则](./config-access)。

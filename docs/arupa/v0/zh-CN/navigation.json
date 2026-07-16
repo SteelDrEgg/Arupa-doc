@@ -1,0 +1,59 @@
+{
+  "language": "zh-CN",
+  "default": false,
+  "pages": [
+    "docs/arupa/v0/zh-CN/quickstart",
+    {
+      "group": "内核",
+      "pages": [
+        "docs/arupa/v0/zh-CN/kernel/introduction",
+        {
+          "group": "安装",
+          "root": "docs/arupa/v0/zh-CN/kernel/installation",
+          "pages": [
+            "docs/arupa/v0/zh-CN/kernel/installation-binary",
+            "docs/arupa/v0/zh-CN/kernel/installation-docker"
+          ]
+        },
+        {
+          "group": "配置",
+          "root": "docs/arupa/v0/zh-CN/kernel/config",
+          "pages": [
+            "docs/arupa/v0/zh-CN/kernel/config-kernel",
+            "docs/arupa/v0/zh-CN/kernel/config-users",
+            "docs/arupa/v0/zh-CN/kernel/config-pages",
+            "docs/arupa/v0/zh-CN/kernel/config-plugins",
+            "docs/arupa/v0/zh-CN/kernel/config-access"
+          ]
+        },
+        "docs/arupa/v0/zh-CN/kernel/plugins",
+        "docs/arupa/v0/zh-CN/kernel/route"
+      ]
+    },
+    {
+      "group": "插件",
+      "pages": [
+        "docs/arupa/v0/zh-CN/plugin/introduction",
+        "docs/arupa/v0/zh-CN/plugin/plg",
+        "docs/arupa/v0/zh-CN/plugin/proto",
+        {
+          "group": "transports",
+          "root": "docs/arupa/v0/zh-CN/plugin/transport",
+          "pages": [
+            "docs/arupa/v0/zh-CN/plugin/transport-static",
+            "docs/arupa/v0/zh-CN/plugin/transport-http",
+            "docs/arupa/v0/zh-CN/plugin/transport-socket.io"
+          ]
+        },
+        {
+          "group": "inter-plugin communication",
+          "root": "docs/arupa/v0/zh-CN/plugin/ipc",
+          "pages": [
+            "docs/arupa/v0/zh-CN/plugin/ipc-kv",
+            "docs/arupa/v0/zh-CN/plugin/ipc-message"
+          ]
+        }
+      ]
+    }
+  ]
+}

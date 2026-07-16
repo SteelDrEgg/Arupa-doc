@@ -1,0 +1,42 @@
+---
+title: "内核"
+description: "配置 Arupa 内核所需的地址和目录。"
+---
+
+内核在启动其服务器和插件系统之前需要一些设置。这些设置在 TOML
+配置文件的顶层定义：
+
+```toml
+Listen = ":8080"
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+## `Listen`
+
+`Listen` 是内核启动其 HTTP 服务器的网络地址。
+默认值 `:8080` 表示监听所有本地接口的 8080 端口。
+
+您可以指定服务器监听特定接口的主机和端口：
+
+```toml
+Listen = "127.0.0.1:8080"
+
+```
+
+## `PluginDir`
+
+`PluginDir` 是内核扫描 `.plg` 插件包的目录。
+插件管理器使用此目录来发现可供 Arupa 使用的插件。
+该路径可以是绝对路径，也可以是相对于进程工作目录的相对路径。
+在示例配置中，`plugins` 指的是位于 Arupa 启动目录旁边的 `plugins` 目录。
+
+
+## `PluginTempDir`
+
+`PluginTempDir` 是内核加载插件时使用的可写临时目录。
+Arupa 会在启动插件之前将其解压到此目录中。
+该目录必须对 Arupa 进程具有写入权限。它与以下目录分开：
+
+`PluginDir` 将原始的 `.plg` 包保留在 `PluginDir` 中，并将
+`PluginTempDir` 用于内核提取的运行时文件。

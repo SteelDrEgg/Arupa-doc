@@ -4,13 +4,7 @@ description: "Understand Arupa's shared path-pattern and route-selection rules."
 ---
 
 Arupa uses one path-pattern implementation for Kernel access rules and plugin
-resource registration. The implementation lives in [`internal/netx/path.go`](https://github.com/SteelDrEgg/Arupa/blob/main/internal/netx/path.go) and
-provides two operations:
-
-- `ValidatePathPattern` checks whether a pattern is valid; and
-- `MatchPathPattern` checks whether a request path matches that pattern.
-
-This is a small path-pattern language. It is not a wildcard, glob, or regular
+resource registration. This is a small path-pattern language. It is not a wildcard, glob, or regular
 expression matcher.
 
 ## Valid patterns

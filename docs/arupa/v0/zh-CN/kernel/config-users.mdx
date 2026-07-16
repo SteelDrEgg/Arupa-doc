@@ -1,0 +1,54 @@
+---
+title: "用户和组"
+description: "定义 Arupa 用户并将其组织成组。"
+---
+
+Arupa 将用户和组成员关系存储在配置文件中。
+用户提供可以登录 Arupa 的身份，而组则组织这些身份，供系统的其他部分使用。
+
+
+## `Users`
+
+`Users` 表将每个用户名映射到其密码哈希值：
+
+```toml
+[Users]
+admin = "<bcrypt 密码哈希值>"
+```
+
+Arupa 存储的是 bcrypt 密码哈希值，而不是明文密码。
+用户名是登录期间以及 Arupa 解析已验证请求身份时使用的密钥。
+
+### 通过命令行界面 (CLI) 添加或更新用户
+
+您可以使用 Arupa 二进制文件创建用户或更新现有用户的密码：
+
+```bash
+./arupa -user admin -password 'admin'
+```
+
+该命令默认使用当前目录下的 `config.toml` 文件。它会将一个 bcrypt 密码哈希值写入 `Users` 表，并在更新配置后退出；它不会启动服务器。
+
+使用 `-config` 参数选择其他配置文件：
+
+```bash
+./arupa -config /path/to/config.toml -user admin -password 'admin'
+```
+
+`-user` 和 `-password` 参数必须同时提供，并且密码不能为空。
+
+## `Groups`
+
+`Groups` 表将组名映射到用户名列表：
+
+```toml
+[Groups]
+root = ["admin"]
+staff = ["alice", "bob"]
+```
+
+一个用户可以属于多个组。身份验证后，内核会查找用户的组，
+并将该组成员身份提供给主机和插件。
+
+用户和组描述了用户的身份以及他们所属的组。它们本身并不授予访问权限。
+要了解如何在访问规则中使用组，请参阅[访问控制](./config-access)。

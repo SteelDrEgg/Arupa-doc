@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "Arupa Documentation",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#c18cff",
+    "light": "#c18cff",
+    "dark": "#7e49b5"
   },
   "favicon": "/favicon.svg",
   "navigation": {

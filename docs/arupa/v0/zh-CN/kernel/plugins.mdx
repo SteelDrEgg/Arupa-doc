@@ -1,0 +1,108 @@
+---
+title: "插件"
+description: "通过插件目录和 API 安装和管理 Arupa 插件。"
+---
+
+内核会从 `PluginDir` 目录发现插件。插件包是一个 `.plg` 文件。
+
+内核会扫描该目录，读取每个包的 `info.yaml` 文件，并
+
+使用插件配置来决定是否启动它。
+
+## 安装插件
+
+Arupa 不会通过管理 API 上传插件包。要安装插件：
+1. 将插件的 `.plg` 包放置在已配置的 `PluginDir` 目录中。
+2. 确保内核可以写入 `PluginTempDir` 目录，内核在加载插件包时会使用该目录。
+3. 通过 API 扫描该目录，或者重启 Arupa，使其在启动时扫描该目录。
+4. 如果插件的有效 `Restart` 设置未启用自动启动，则启动插件。
+
+默认目录如下：
+
+```toml
+PluginDir = "plugins"
+PluginTempDir = "tmp"
+```
+
+该软件包必须是有效的插件归档文件，且包含根目录下的 `info.yaml` 文件。该
+元数据必须提供插件名称、版本、类型（`grpc` 或 `wasm`）、
+合约版本和命令。非 `.plg` 格式的文件在扫描过程中将被忽略。
+
+有关自动启动、执行用户、访问组和插件参数的设置，请参阅[插件配置](./config-plugins)。
+
+## 管理 API
+
+所有插件管理端点都位于 `/api/plugins` 目录下，并且需要
+经过身份验证的用户。它们返回 Arupa 使用的标准 JSON 响应结构：
+`success`、`message` 和 `data`。
+
+### 列出插件状态
+
+```http
+GET /api/plugins
+```
+
+响应包含已配置的 `plugin_dir` 和 `plugin_temp_dir`，以及一个
+`discovered` 列表和一个 `running` 列表。
+已发现的条目包含包的元数据、有效配置和生命周期状态。
+正在运行的条目包含每个正在运行的插件注册的资源。
+
+### 扫描插件目录
+
+```http
+POST /api/plugins/scan
+```
+
+此操作扫描当前的 `PluginDir` 并刷新已发现的插件列表。
+它不会自动启动插件。响应包含扫描路径和已发现的插件数量。
+
+### 启动、停止或重启插件
+
+这三个操作使用相同的请求体：
+
+```http
+POST /api/plugins/start
+POST /api/plugins/stop
+POST /api/plugins/restart
+Content-Type: application/json
+
+{"name":"hello"}
+```
+
+- `start` 会根据名称启动之前扫描过的插件。
+- `stop` 会卸载正在运行的插件并移除其与当前主机的绑定。
+- `restart` 会停止正在运行的插件实例，然后加载最新扫描到的、与该插件名称对应的软件包。
+
+`name` 字段为必填项。这些操作不接受软件包路径；
+插件必须已存在于扫描结果中。
+
+### 读取插件目录配置
+
+```http
+GET /api/plugins/config
+```
+
+响应返回当前的 `plugin_dir` 和 `plugin_temp_dir`。
+
+### 更新插件目录配置
+
+```http
+PUT /api/plugins/config
+Content-Type: application/json
+{
+    "plugin_dir": "plugins",
+    "plugin_temp_dir": "tmp"
+}
+```
+
+这两个字段都是必填项。API 会在保存配置之前创建目录，更新管理器，并扫描新的插件目录。
+更改 `plugin_dir` 会立即生效。
+更改`plugin_temp_dir` 会通过 `temp_dir_requires_restart: true` 进行报告，
+因为插件管理器会在启动时初始化其提取目录。
+
+## 身份验证和访问
+
+此页面中的每个端点都使用内核的身份验证中间件。
+
+未经身份验证的请求会在处理程序运行之前被拒绝。您可以使用 `Route.Allow` 为这些路径添加组限制；
+请参阅[访问控制](./config-access)。

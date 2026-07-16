@@ -1,0 +1,182 @@
+---
+title: ".plg 包"
+description: "构建并组织 Arupa 内核加载的插件包。"
+---
+
+`.plg` 文件是 Arupa 插件的分发格式。它是一个 ZIP 压缩包，
+其中包含插件清单以及插件运行时所需的文件。
+内核会扫描扩展名为 `.plg` 的文件，读取清单，
+并在插件启动时将包解压到其配置的临时目录中。
+
+## 包布局
+
+一个有效的包在其压缩包根目录下包含 `info.yaml` 文件，并且包含一个 `Content` 目录：
+
+```text
+my-plugin.plg
+├── info.yaml
+└── Content/
+    ├── my-plugin.wasm
+    ├── pages/
+    │   └── index.html
+    └── assets/
+        └── app.js
+```
+
+`Content` 是插件的运行时根目录。
+内核通过 `info.yaml` 文件中的 `$PLUGIN_ROOT` 占位符以及注册期间返回的资源声明来公开其提取路径。
+插件应将其可执行文件和所有静态资源保存在此目录下。
+
+软件包必须同时包含 `info.yaml` 和 `Content/` 目录。
+无法以 ZIP 压缩包形式读取、缺少根目录清单或缺少内容目录的软件包将无法加载。
+
+## `info.yaml`
+
+清单文件用于标识插件并告知内核如何启动它：
+
+```yaml
+Name: my-plugin
+Version: 1.0.0
+Type: wasm
+ContractVersion: 1
+Command: $PLUGIN_ROOT/my-plugin.wasm
+DisplayName: My Plugin
+
+# 可选元数据
+Category: application
+Entry: /my-plugin/pages/index.html
+
+```
+
+必填字段如下：
+
+| 字段 | 描述 |
+| --- | --- |
+| `Name` | 插件的唯一名称。该值必须与插件注册响应中返回的值一致。 |
+| `Version` | 插件版本。它必须与注册期间返回的版本匹配。 |
+| `Type` | 运行时后端：`wasm` 或 `grpc`。 |
+| `ContractVersion` | 插件使用的插件协议版本。 |
+| `Command` | 要加载的可执行文件或 WASM 模块。`$PLUGIN_ROOT` 将被提取的 `Content` 路径替换。|
+
+其他字段将作为插件元数据保留。它们可供内核的插件管理功能或应用程序 UI 使用，
+但不会替换上述必需的运行时字段。
+
+### 后端和命令
+
+对于 WASM 插件，请将 `Type` 设置为 `wasm`，并将 `Command` 指向以下模块：
+
+```yaml
+Type: wasm
+Command: $PLUGIN_ROOT/my-plugin.wasm
+```
+
+对于 gRPC 插件，请将 `Type` 设置为 `grpc`，并将 `Command` 指向以下可执行文件：
+
+```yaml
+Type: grpc
+Command: $PLUGIN_ROOT/my-plugin
+```
+
+内核启动 gRPC 可执行文件时，会将其工作目录设置为
+`$PLUGIN_ROOT`，并提供 `PLUGIN_ROOT` 环境变量。
+这使得可执行文件能够找到资源，而无需依赖内核选择的临时提取路径。
+
+
+## 构建和打包
+
+按以下顺序构建插件并打包。
+
+### 1. 编译插件
+
+为选定的后端编译插件。编译结果是一个运行时工件：
+WASM 插件的 WASM 模块或 gRPC 插件的可执行文件。
+请保留该工件，以便将其复制到包的 `Content/` 目录中。
+
+### 2. 创建包目录
+
+为包创建一个临时目录。`info.yaml` 和 `Content/` 必须位于此目录下：
+
+```sh
+mkdir -p build/my-plugin/Content
+```
+
+该目录将成为 ZIP 归档文件的根目录。创建归档文件时，请勿在其周围添加其他目录层级。
+
+### 3. 创建 `info.yaml`
+
+在包根目录创建 `info.yaml` 文件。将 `Command` 设置为相对于 `Content/` 目录的工件路径，使用 `$PLUGIN_ROOT`：
+
+```yaml
+Name: my-plugin
+Version: 1.0.0
+Type: wasm
+ContractVersion: 1
+Command: $PLUGIN_ROOT/my-plugin.wasm
+```
+
+将文件复制到暂存目录：
+
+```sh
+cp info.yaml build/my-plugin/info.yaml
+```
+
+对于 gRPC 工件，将 `Type` 设置为 `grpc`，并将 `Command` 指向可执行文件，例如 `Command: $PLUGIN_ROOT/my-plugin`。
+
+### 4. 放置运行时工件和静态资源
+
+将编译后的工件复制到 `Content/` 目录。其位置必须与以下内容匹配：
+
+`info.yaml`:
+
+```sh
+cp build/my-plugin.wasm build/my-plugin/Content/my-plugin.wasm
+```
+
+将插件所需的任何静态资源放在同一目录下：
+
+```sh
+cp -R pages build/my-plugin/Content/pages
+cp -R assets build/my-plugin/Content/assets
+```
+
+生成的暂存目录应如下所示：
+
+```text
+build/my-plugin/
+├── info.yaml
+└── Content/
+    ├── my-plugin.wasm
+    ├── pages/
+    │   └── index.html
+    └── assets/
+        └── app.js
+```
+
+### 5. 创建 ZIP 压缩包
+
+在暂存目录中创建压缩包。这样会将 `info.yaml`和 `Content/` 目录保留在归档根目录：
+
+```sh
+mkdir -p plugins
+cd build/my-plugin
+zip -qr ../../plugins/my-plugin.plg .
+```
+
+生成的 `plugins/my-plugin.plg`
+文件已准备好放置在内核的已配置的 `PluginDir` 目录中。
+扫描该目录或重启内核以发现该软件包。
+
+## 加载软件包
+
+内核的软件包工作流程如下：
+
+1. 扫描 `PluginDir` 目录以查找 `.plg` 文件；
+2. 读取并验证每个文件。h 包的 `info.yaml` 文件；
+3. 将选定的包解压到 `PluginTempDir` 目录；
+4. 启动由 `Type` 和 `Command` 参数描述的后端；
+5. 调用插件的注册方法；以及
+6. 连接插件返回的路由、静态挂载点、Socket.IO 资源和消息处理程序。
+
+只有注册成功，包才被视为已成功加载。
+注册响应中的 `Name` 和 `Version` 必须与 `info.yaml` 文件中的值匹配；否则内核将拒绝该包。
+有关启动行为、运行时参数以及 gRPC 插件的执行用户，请参阅 [插件配置](../kernel/config-plugins)。
