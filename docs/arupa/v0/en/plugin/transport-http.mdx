@@ -1,0 +1,159 @@
+---
+title: "HTTP"
+description: "Handle dynamic HTTP requests in a plugin."
+---
+
+HTTP lets a plugin handle dynamic HTTP requests. Use it when the
+response depends on request data, plugin state, or application logic. The
+Kernel matches the incoming request, checks access, converts the request into
+the plugin protocol, and sends the plugin response back to the client.
+
+Use [static transport](./transport-static) when the Kernel can serve a file as-is.
+
+## Declare an HTTP route
+
+Declare each HTTP route during plugin registration. A route contains:
+
+| Property | Meaning |
+| --- | --- |
+| `method` | HTTP method to accept. Leave it empty to accept any method for the pattern. |
+| `pattern` | URL path that selects the route. |
+| `access` | Optional access policy for the route. |
+
+The exact declaration syntax depends on the language and generated SDK. The
+following language-neutral form shows the information a route contains:
+
+```text
+method:  POST
+pattern: /my-plugin/items
+access:  <optional policy>
+```
+
+The route pattern must start with `/`. The query string is not part of the
+pattern. For example, a request to `/my-plugin/items?limit=10` matches the
+pattern `/my-plugin/items`; the plugin receives `limit=10` as request data.
+
+## Path matching
+
+HTTP routes use the Kernel's shared path-pattern language. Read [Kernel route
+matching](../kernel/route) for the complete pattern and matching rules.
+
+For HTTP transport, the important cases are:
+
+- A pattern without a trailing `/` matches one exact path.
+- A pattern ending in `/` matches that path and its subtree.
+
+For example:
+
+```text
+/my-plugin/items       → only /my-plugin/items
+/my-plugin/items/      → /my-plugin/items/ and paths below it
+                         such as /my-plugin/items/42
+```
+
+The root pattern `/` matches only `/` for HTTP routes. The legacy wildcard
+form `/*` is not supported. Use a trailing `/` for a subtree instead.
+
+When multiple patterns match a path, the longest matching pattern wins. The
+Kernel chooses the path before it chooses the method. If the selected pattern
+has no route for the request method, the client receives `405 Method Not
+Allowed`.
+
+An exact method route takes precedence over an any-method route with the same
+pattern. Method names are matched case-insensitively.
+
+## Request data
+
+The request sent to the plugin is the Protobuf `HTTPRequest` message. See the
+[Protobuf](./proto) documentation for the shared contract. Its
+fields are:
+
+| Field | Protobuf type | Definition |
+| --- | --- | --- |
+| `route_pattern` | `string` | The registered pattern that matched the request. |
+| `method` | `string` | The HTTP method, such as `GET` or `POST`. |
+| `path` | `string` | The URL path, without the query string. |
+| `query` | `string` | The raw query string, without the leading `?`. |
+| `headers` | `map<string, string>` | Request headers represented as string key-value pairs. |
+| `body` | `bytes` | The complete request body. |
+| `remote_addr` | `string` | The remote address reported by the HTTP server. |
+| `user` | `User` | The authenticated user, when available. |
+
+The `User` message contains a `username` string and a `groups` list of strings.
+For an unauthenticated request, `user` is absent.
+
+The Kernel buffers the request body before sending it to the plugin. The body
+limit is 8 MiB. A request larger than this limit is rejected before the plugin
+handler runs.
+
+The protocol represents one request and one response as messages. It does not
+provide a streaming request or response body, so use a different design for
+payloads that cannot fit within the limit.
+
+## Return a response
+
+Return the Protobuf `HTTPResponse` message defined by the [Protobuf](./proto)
+contract. Its fields are:
+
+| Field | Protobuf type | Definition |
+| --- | --- | --- |
+| `status` | `int32` | HTTP status code. |
+| `headers` | `map<string, string>` | Response headers represented as string key-value pairs. |
+| `body` | `bytes` | Response body bytes. |
+
+If the status is omitted or zero, the Kernel uses `200 OK`. Set the
+`Content-Type` header when the client needs to know how to interpret the body.
+The Kernel copies the response headers and body to the HTTP response.
+
+If the plugin handler fails before returning a response, the Kernel returns a
+`502 Bad Gateway` response to the client. Handle expected application errors
+inside the plugin and return the appropriate status and response body.
+
+## Access control
+
+The Kernel evaluates access before it forwards a request to the plugin. A
+request must satisfy both the plugin-wide policy configured for the plugin and
+the policy declared on the route. If either policy denies the request, the
+handler does not run.
+
+An empty route policy does not override a plugin-wide restriction. Use the
+plugin-wide policy for a rule that applies to every resource, and the route
+policy for a more specific rule. See [Access control](../kernel/config-access)
+for the policy model.
+
+## Route conflicts
+
+HTTP routes share the application's URL space with other plugin routes and
+static mounts. The same path and method cannot be claimed by two different
+plugins. Two plugins may use the same path when they handle different methods,
+provided neither route accepts every method. An any-method route conflicts with
+every method-specific route for the same path.
+
+A route also conflicts with a static mount owned by another plugin when both
+declare the same path pattern. Keep route patterns within a clear plugin
+namespace to avoid collisions.
+
+The Kernel checks these conflicts while connecting the resources returned during
+registration. A conflicting route is not connected, but the plugin process or
+WASM instance still starts. The plugin is marked `degraded`, and its other
+non-conflicting resources remain available. Resolve the conflict and restart
+the plugin to register the missing route.
+
+This is different from a failure to load the package, start the backend, or
+complete plugin registration. Those failures prevent the plugin from starting
+and leave it in a failed state.
+
+## HTTP handler checklist
+
+Before loading the plugin, verify that:
+
+- every route pattern starts with `/`;
+- you use a trailing `/` for a subtree and never use `/*`;
+- query parameters are read from the request data rather than included in the
+  route pattern;
+- the route access policy matches the data the handler protects;
+- request bodies stay within the 8 MiB limit; and
+- responses set a status, content type, and body appropriate for the client.
+
+HTTP is the right choice for dynamic behavior. For packaged files
+that do not require a handler, use [static transport](./transport-static).

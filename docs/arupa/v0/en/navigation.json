@@ -33,7 +33,26 @@
     {
       "group": "Plugin",
       "pages": [
-        "docs/arupa/v0/en/plugin"
+        "docs/arupa/v0/en/plugin/introduction",
+        "docs/arupa/v0/en/plugin/plg",
+        "docs/arupa/v0/en/plugin/proto",
+        {
+          "group": "transports",
+          "root": "docs/arupa/v0/en/plugin/transport",
+          "pages": [
+            "docs/arupa/v0/en/plugin/transport-static",
+            "docs/arupa/v0/en/plugin/transport-http",
+            "docs/arupa/v0/en/plugin/transport-socket.io"
+          ]
+        },
+        {
+          "group": "inter-plugin communication",
+          "root": "docs/arupa/v0/en/plugin/ipc",
+          "pages": [
+            "docs/arupa/v0/en/plugin/ipc-kv",
+            "docs/arupa/v0/en/plugin/ipc-message"
+          ]
+        }
       ]
     }
   ]

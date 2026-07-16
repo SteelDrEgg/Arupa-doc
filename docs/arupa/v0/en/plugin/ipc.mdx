@@ -1,0 +1,27 @@
+---
+title: "Inter-plugin communication"
+description: "Choose how plugins share state and exchange messages."
+---
+
+Inter-plugin communication (IPC) lets plugins cooperate through capabilities
+provided by the Arupa Kernel. Plugins do not need to share memory or connect to
+each other's internal transports. The Kernel provides the communication
+boundary and applies the same behavior to WASM and gRPC plugins.
+
+Choose the mechanism based on what you need to share:
+
+- [KV storage](./ipc-kv) provides shared in-memory state organized by namespace
+  and key. Use it for values that other plugins may read or update later.
+- [Plugin messages](./ipc-message) provide synchronous, point-to-point
+  request/response communication. Use them when one plugin needs another plugin
+  to perform an operation immediately and return a result.
+
+KV values are not durable and plugin messages are not queued or persisted. If
+data must survive a Kernel restart, store it in a durable system outside these
+IPC mechanisms. If a request must be delivered asynchronously or to multiple
+plugins, define that behavior explicitly in your application rather than
+assuming that the Kernel will queue or broadcast it.
+
+Both mechanisms carry data across the plugin boundary through the generated
+protocol bindings. Keep the data format and ownership rules clear between the
+plugins that participate in the communication.

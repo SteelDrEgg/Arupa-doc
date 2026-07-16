@@ -1,0 +1,28 @@
+# Plugins
+
+A plugin is a deployable unit that adds a feature to an Arupa application. It
+contains the feature-specific code, while the Arupa Kernel provides the shared
+runtime and application integration. This keeps the Kernel responsible for
+common concerns and lets plugins focus on their own business logic.
+
+The Kernel manages the plugin lifecycle: it loads the plugin package, starts
+the selected backend, registers the plugin, and connects the resources declared
+by the plugin to the application. A plugin can expose HTTP routes, static
+resources, Socket.IO namespaces and events, and plugin-to-plugin message
+handlers. The Kernel routes requests and events to the corresponding plugin
+and enforces the access policy declared for each resource.
+
+Plugins can run as WASM modules or gRPC components. During registration, a
+plugin returns its identity and the resources it provides. Its handlers then
+implement the feature behavior and use the Kernel Host API when they need
+shared application capabilities, such as logging, key-value storage,
+configuration updates, Socket.IO messages, or communication with another
+plugin.
+
+Each plugin is described by a manifest containing metadata such as its name,
+version, backend type, contract version, entry path, and startup command. The
+manifest and backend artifact are packaged together so the Kernel can discover
+and load the plugin as a single unit.
+
+The rest of this section covers the package format, plugin protocol, Host API,
+and the available transports.

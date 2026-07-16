@@ -1,0 +1,151 @@
+---
+title: "Socket.IO"
+description: "Handle Socket.IO namespaces and events in a plugin."
+---
+
+Socket.IO lets a plugin receive and emit real-time events through the
+Kernel's Socket.IO server. Use it for interactive features that need a
+persistent client connection, event notifications, or server-side updates.
+
+The plugin declares a namespace and the events it handles during registration.
+The Kernel owns the Socket.IO connection, applies access policies, and forwards
+declared events to the plugin.
+
+## Declare a namespace
+
+A namespace declaration contains:
+
+| Property | Meaning |
+| --- | --- |
+| `name` | Socket.IO namespace, such as `/my-plugin`. |
+| `events` | Event names that the plugin accepts in that namespace. |
+| `access` | Optional access policy for the namespace. |
+| `event_access` | Optional access policy for individual events. |
+
+The exact declaration syntax depends on the language and generated SDK. The
+following language-neutral form shows the declaration:
+
+```text
+name:   /my-plugin
+events: [update, refresh]
+access: <optional policy>
+```
+
+Namespace names must be unique among running plugins. Use a namespace owned by
+your plugin, usually under a plugin-specific path, to avoid collisions.
+
+## Connect to a namespace
+
+A client connects to the namespace declared by the plugin. The Kernel checks
+the plugin-wide and namespace access policies during the connection handshake.
+If either policy rejects the user, the connection is refused.
+
+The namespace is unavailable while no running plugin owns it. Stopping the
+owning plugin disconnects existing sockets from that namespace. Future
+connections are rejected until the plugin is started again.
+
+## Receive an event
+
+Only event names listed in `events` are forwarded to the plugin. Events that
+are not declared are ignored by the Kernel.
+
+The event sent to the plugin is the Protobuf `SocketEvent` message. See the
+[Protobuf](./proto) documentation for the shared contract. Its
+fields are:
+
+| Field | Protobuf type | Definition |
+| --- | --- | --- |
+| `namespace` | `string` | Namespace that received the event. |
+| `event` | `string` | Event name. |
+| `socket_id` | `string` | ID of the socket that sent the event. |
+| `payload` | `bytes` | JSON-encoded array of the event arguments. |
+| `user` | `User` | Authenticated user, when available. |
+
+The Kernel does not impose an application schema on `payload`. Define the
+payload shape between your client and plugin, then decode and validate it in
+the plugin. Since the payload is an array, an event with one object argument
+is represented conceptually as:
+
+```json
+[{"id": 42, "enabled": true}]
+```
+
+An unauthenticated event has no `user` value. The `User` message contains a
+`username` string and a `groups` list of strings.
+
+## Send an event
+
+The plugin sends events using emit instructions. An emit instruction contains:
+
+| Field | Protobuf type | Definition |
+| --- | --- | --- |
+| `namespace` | `string` | Namespace in which to emit the event. |
+| `target` | `string` | Socket ID for a directed emit. Leave empty to broadcast to the namespace. |
+| `event` | `string` | Event name delivered to clients. |
+| `payload` | `bytes` | JSON-encoded array of event arguments. |
+
+The event handler can return one or more emit instructions in its response.
+This is the portable request/reply form. For WASM plugins, it is the normal way
+to emit in response to an incoming event because the handler cannot push an
+event spontaneously. A gRPC plugin can also use the host's emit capability
+when it needs to send an event outside the current handler call.
+
+For a directed event, set `target` to the receiving socket's ID. For a
+namespace broadcast, leave `target` empty:
+
+```text
+namespace: /my-plugin
+target:    <socket id>   # directed event
+event:     update
+payload:   [{"status": "ready"}]
+```
+
+The same payload rule applies to emitted events: `payload` must contain a JSON
+array of arguments. An empty payload emits an event with no arguments.
+
+## Access control
+
+The Kernel evaluates access at both connection and event time:
+
+1. The plugin-wide policy must allow the user.
+2. The namespace policy must allow the user.
+3. If the event has an entry in `event_access`, that event policy must also
+   allow the user.
+
+All applicable policies must allow the operation. A namespace policy does not
+override a stricter plugin-wide policy, and an event policy does not make a
+restricted namespace public.
+
+When an event is denied after a socket has connected, the Kernel emits an
+`error` event to that socket. The error identifies whether authentication is
+required or the user is forbidden. The event is not forwarded to the plugin.
+See [Access control](../kernel/config-access) for the policy model.
+
+## Namespace conflicts and lifecycle
+
+A namespace can have only one owning plugin at a time. If another running
+plugin already owns the namespace, the Kernel does not attach the new plugin's
+namespace declaration.
+
+The namespace conflict affects only that declaration: the plugin still starts,
+but the Kernel marks it `degraded`. Other non-conflicting resources can remain
+available. Resolve the conflict and restart the plugin to claim the namespace.
+
+Stopping a plugin releases its namespace ownership and disconnects all sockets
+connected to that namespace. Restarting the plugin replaces the owner and lets
+clients connect again.
+
+## Event handling checklist
+
+Before loading the plugin, verify that:
+
+- the namespace begins with `/` and is unique to the plugin;
+- every event the plugin expects is listed in `events`;
+- client and plugin agree that each payload is a JSON array of arguments;
+- payloads are validated before the plugin uses them;
+- namespace and event access policies protect the intended users; and
+- emitted events use the correct namespace and target.
+
+Use Socket.IO for connection-oriented, event-driven behavior. Use
+[HTTP transport](./transport-http) for request/response interactions and
+[static transport](./transport-static) for files that can be served as-is.

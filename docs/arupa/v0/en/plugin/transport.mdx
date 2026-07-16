@@ -1,0 +1,28 @@
+---
+title: "Transports"
+description: "Choose how a plugin connects its features to the Arupa application."
+---
+
+# Transports
+
+Transports define how a plugin exposes a feature through the Arupa Kernel.
+During registration, a plugin declares the resources it provides. The Kernel
+then connects those resources to the corresponding application transport and
+forwards matching requests or events to the plugin.
+
+Choose a transport based on the interaction your feature needs:
+
+- [Static transport](./transport-static) serves packaged files directly, such
+  as pages, stylesheets, scripts, and images.
+- [HTTP transport](./transport-http) sends dynamic request/response work to a
+  plugin handler.
+- [Socket.IO transport](./transport-socket.io) connects a plugin to
+  namespace-based, event-driven communication.
+
+Static resources do not need plugin code to handle each request. Use HTTP when
+the response must be computed, and Socket.IO when clients need a persistent
+connection or real-time events.
+
+Each transport has its own matching and access rules. Read the relevant page
+before declaring resources so that paths, events, payloads, and permissions
+match the behavior you want to expose.

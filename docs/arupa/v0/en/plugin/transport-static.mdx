@@ -1,0 +1,135 @@
+---
+title: "Static"
+description: "Serve files from a plugin package through the Kernel."
+---
+
+Static lets a plugin expose files from its package directly through
+the Kernel's HTTP server. Use it for pages, stylesheets, scripts, images, and
+other files that do not need plugin code to process each request.
+
+The plugin declares a static mount during registration. After the mount is
+accepted, the Kernel serves matching requests from the declared file or
+directory. The request does not need to cross the plugin process or WASM
+boundary.
+
+## Declare a static mount
+
+A static mount has three parts:
+
+| Property | Meaning |
+| --- | --- |
+| `prefix` | URL path at which the resource is available. |
+| `directory` | File or directory to serve. Use `$PLUGIN_ROOT` to refer to the extracted `Content` directory in the plugin package. |
+| `access` | Optional access policy for the mounted resource. |
+
+The exact syntax depends on the language and generated SDK you use. The
+language-neutral declaration below shows the information a mount contains:
+
+```text
+prefix:    /my-plugin/assets/
+directory: $PLUGIN_ROOT/assets
+access:    public
+```
+
+The directory or file must exist when the Kernel loads the plugin. Package the
+resource under `Content/` and refer to it through `$PLUGIN_ROOT`:
+
+```text
+my-plugin.plg
+├── info.yaml
+└── Content/
+    └── assets/
+        ├── app.js
+        └── app.css
+```
+
+## Mount a directory
+
+Use a URL prefix ending in `/` when serving a directory:
+
+```text
+prefix:    /my-plugin/assets/
+directory: $PLUGIN_ROOT/assets
+```
+
+The prefix maps to the directory subtree. For example:
+
+```text
+/my-plugin/assets/app.js  →  Content/assets/app.js
+/my-plugin/assets/app.css →  Content/assets/app.css
+```
+
+The URL prefix should start with `/`. A trailing `/` means that the prefix
+matches the subtree below it. The path `/my-plugin/assets` without the trailing
+slash is not the same subtree path; add an HTTP route if you need a redirect or
+an index response at that exact path.
+
+If the prefix does not include a trailing slash, the Kernel normalizes a
+directory mount to a subtree prefix. Use the trailing slash explicitly so the
+mapping is clear to readers and to clients.
+
+## Mount a single file
+
+Use an exact URL path without a trailing `/` when serving one file:
+
+```text
+prefix:    /my-plugin/index.html
+directory: $PLUGIN_ROOT/pages/index.html
+```
+
+Only the exact path is served. A request for
+`/my-plugin/index.html/anything` does not match this mount. Although the
+declaration property is named `directory`, it accepts either a directory or a
+single file.
+
+Do not add a trailing `/` to a file mount. A trailing slash tells the Kernel to
+treat the source as a directory mount.
+
+## URL path rules
+
+Static mount prefixes follow the Kernel's path-pattern rules:
+
+- the prefix must be an absolute path beginning with `/`;
+- a prefix without a trailing `/` matches one exact path;
+- a prefix ending in `/` matches that path subtree; and
+- `/*` is not a wildcard form and is rejected.
+
+The root prefix `/` is treated as a subtree for static files and can match all
+absolute request paths. Avoid claiming the root unless the plugin is intended
+to provide the application's general static content.
+
+## Access control
+
+The `access` policy applies before the Kernel serves the file. A request must
+also satisfy the plugin-wide access policy configured for the plugin. If either
+policy rejects the request, the file is not served.
+
+An empty mount policy does not bypass a non-empty plugin-wide policy. Use the
+plugin configuration to restrict every resource owned by a plugin, and use the
+mount policy for a more specific restriction on one static resource. See
+[Access control](../kernel/config-access) for the policy model.
+
+## Conflicts and matching
+
+Static mounts share the application's URL space with plugin HTTP routes and
+other static mounts. Keep each plugin's prefixes unique. The Kernel rejects a
+mount when another plugin already owns the same static prefix or conflicting
+HTTP route pattern.
+
+When multiple mounts can match a request, the longest matching prefix wins. A
+static mount also wins when it has the same match length as a plugin HTTP route.
+Choose specific prefixes to avoid surprising ownership of a URL.
+
+## Packaging checklist
+
+Before loading the plugin, verify that:
+
+- every mounted file or directory is inside the package's `Content/` tree;
+- the `directory` value uses `$PLUGIN_ROOT` rather than a build-machine path;
+- directory prefixes end in `/`;
+- file prefixes do not end in `/`; and
+- the package contains all files referenced by the mounts.
+
+Static is intended for files that can be served as-is. If a request
+needs application logic, request data, or a generated response, use the HTTP
+transport instead.
