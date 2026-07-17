@@ -2,6 +2,7 @@
   "language": "en",
   "default": true,
   "pages": [
-    "docs/coreplugins/v0/en/index"
+    "docs/coreplugins/v0/en/introduction",
+    "docs/coreplugins/v0/en/secret-manager"
   ]
 }

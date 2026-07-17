@@ -4,6 +4,9 @@
   "languages": [
     {
       "$ref": "en/navigation.json"
+    },
+    {
+      "$ref": "zh-CN/navigation.json"
     }
   ]
 }

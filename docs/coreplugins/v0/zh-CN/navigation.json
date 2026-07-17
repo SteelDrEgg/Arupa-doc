@@ -1,0 +1,8 @@
+{
+  "language": "zh-CN",
+  "default": false,
+  "pages": [
+    "docs/coreplugins/v0/zh-CN/introduction",
+    "docs/coreplugins/v0/zh-CN/secret-manager"
+  ]
+}

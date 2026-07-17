@@ -1,0 +1,44 @@
+---
+title: "Introduction"
+description: "Understand the role of Core Plugins in the Arupa application."
+---
+
+Core Plugins are a set of plugins that provide the standard application
+experience around the Arupa Kernel. They are ordinary plugins that use the
+same plugin contract as any other plugin. The Kernel does not require this
+specific set of plugins to load or run other plugins.
+
+Although they are optional from the Kernel's perspective, Core Plugins often
+fulfill important application roles. They provide basic features, publish
+shared resources, and implement conventions that let other plugins cooperate
+without adding application-specific logic to the Kernel.
+
+## What Core Plugins provide
+
+Core Plugins commonly provide:
+
+- application infrastructure such as login, navigation, and plugin management;
+- shared frontend assets, theme resources, and browser-side helpers;
+- reusable application capabilities such as secret management;
+- implementations of the conventions used by other plugins.
+
+Some Core Plugins act as providers for other plugins. For example, a provider
+can publish a resource URL or shared metadata, while consumer plugins discover
+it through the agreed convention. This keeps the Kernel focused on plugin
+loading, transport, authorization, and IPC.
+
+## Conventions and replacement
+
+Core Plugins are the current implementations of the conventions documented in kernel documentation. These conventions are recommended for plugins that want to
+integrate with the standard application experience, but they are not private
+Core Plugin APIs.
+
+Because the integration is defined by a convention, you can replace a Core
+Plugin or provide a custom implementation without changing the Kernel. The
+replacement must preserve the names, formats, metadata, URLs, or behavior that
+consumer plugins depend on.
+
+Use the Core Plugins documentation to understand the capabilities and
+conventions provided to the rest of the application. Use the [Plugin
+Development Guide](../../../arupa/v0/en/plugin/introduction) when you are
+building a plugin that runs on the Kernel.
