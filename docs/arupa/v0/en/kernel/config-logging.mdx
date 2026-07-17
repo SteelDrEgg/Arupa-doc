@@ -1,0 +1,135 @@
+---
+title: "Logging"
+description: "Configure structured Kernel and plugin logs."
+---
+
+Arupa writes Kernel and plugin logs through one structured logger. The default
+output is JSON, so records can be collected and searched by field. You can
+switch to text output when reading logs directly in a terminal.
+
+## Configure logging
+
+Set the process-wide logging options in the `[Log]` section:
+
+```toml
+[Log]
+Format = "json"
+Level = "info"
+```
+
+| Setting | Values | Description |
+| --- | --- | --- |
+| `Format` | `json`, `text` | Selects structured JSON records or human-readable key-value text. |
+| `Level` | `debug`, `info`, `warn`, `error` | Sets the minimum level emitted by the logger. |
+
+The defaults are `Format = "json"` and `Level = "info"`. Level filtering is
+inclusive: `warn` emits warnings and errors, while `debug` emits every level.
+The values are case-insensitive.
+
+Configuration errors are reported when the configuration is loaded. At
+startup, invalid logging settings cause the Kernel to use its defaults. During
+a reload, an invalid configuration leaves the current configuration in effect.
+Changes to `[Log]` take effect when the Kernel creates its logger at startup;
+reloading the configuration updates runtime settings such as plugins, but does
+not replace the logger that is already running.
+
+## Common fields
+
+Every Kernel log identifies its origin with two fields:
+
+```text
+component=kernel from=http
+```
+
+`component` identifies the trust boundary that produced the record. `from`
+identifies the Kernel subsystem. Common values include:
+
+- `http` for HTTP access records;
+- `socketio` for Socket.IO connection and event records;
+- `plugin_manager` for plugin discovery and lifecycle records; and
+- `config`, `server`, and `cli` for configuration, server, and command-line
+  activity.
+
+Logs emitted by a plugin through the authenticated host boundary use:
+
+```text
+component=plugin from=<plugin-name>
+```
+
+The Kernel derives the plugin name from the authenticated gRPC callback or the
+WASM binding context. A plugin cannot change this attribution by supplying a
+different source name. The plugin protocol itself is unchanged; attribution is
+added by the Kernel's host logging layer.
+
+## Debug source locations
+
+When `Level = "debug"`, the logger automatically adds `source` with the
+application call site. This is useful for locating the code that emitted a
+diagnostic record, but it increases the size of every record and usually
+increases log volume as well.
+
+Do not confuse `source` with `from`:
+
+- `source` is the debug-only logger call location; and
+- `from` is the stable Kernel subsystem or plugin identity.
+
+At `info`, `warn`, and `error` levels, the call-site `source` field is omitted.
+
+## HTTP access logs
+
+The Kernel emits one access record after every HTTP request, including requests
+handled by Kernel routes, plugin HTTP handlers, static mounts, and the
+Socket.IO HTTP endpoint.
+
+Each record contains:
+
+| Field | Meaning |
+| --- | --- |
+| `method` | HTTP method. |
+| `path` | Request path, without the query string. |
+| `status` | Final HTTP status code. |
+| `duration_ms` | Request duration in milliseconds. |
+| `bytes_written` | Number of response body bytes written. |
+
+The access record uses `component=kernel` and `from=http`. Its log level is
+selected from the final status:
+
+- `4xx` responses are logged at `WARN`;
+- `5xx` responses are logged at `ERROR`; and
+- all other responses are logged at `INFO`.
+
+Request bodies, headers, and query strings are not included in this access
+record. The path may still contain sensitive information if the application
+places sensitive values in path segments.
+
+## Socket.IO logs
+
+Socket.IO records use `component=kernel` and `from=socketio`. The Kernel logs:
+
+- successful connections and disconnections at `INFO`, including the
+  namespace and socket ID;
+- unavailable namespaces and rejected connections at `WARN`;
+- malformed or undeclared events at `DEBUG`;
+- successful event handling at `DEBUG`, including the namespace, event,
+  plugin, and `duration_ms`; and
+- plugin handler, payload-processing, or emit failures at `ERROR` when the
+  Kernel cannot complete the operation.
+
+Successful event logs never include event payloads. Error records also avoid
+logging payload data. Use the plugin's own structured logging when you need a
+deliberate, sanitized application-level diagnostic.
+
+## Choosing a level
+
+Use `info` for normal operation. It includes HTTP access records, plugin
+lifecycle records, and Socket.IO connection state without logging successful
+Socket.IO events.
+
+Use `warn` when you need to investigate rejected requests, unavailable
+namespaces, or other recoverable conditions. Use `error` when investigating
+failed requests or operations.
+
+Use `debug` temporarily when diagnosing route selection, ignored Socket.IO
+events, successful event handling, or the exact call site of a log record.
+Return to `info` after diagnosis to reduce volume and avoid collecting more
+diagnostic detail than necessary.

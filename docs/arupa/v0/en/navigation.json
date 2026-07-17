@@ -21,9 +21,10 @@
           "pages": [
             "docs/arupa/v0/en/kernel/config-kernel",
             "docs/arupa/v0/en/kernel/config-users",
+            "docs/arupa/v0/en/kernel/config-access",
             "docs/arupa/v0/en/kernel/config-pages",
             "docs/arupa/v0/en/kernel/config-plugins",
-            "docs/arupa/v0/en/kernel/config-access"
+            "docs/arupa/v0/en/kernel/config-logging"
           ]
         },
         "docs/arupa/v0/en/kernel/plugins",
@@ -52,7 +53,8 @@
             "docs/arupa/v0/en/plugin/ipc-kv",
             "docs/arupa/v0/en/plugin/ipc-message"
           ]
-        }
+        },
+        "docs/arupa/v0/en/plugin/logging"
       ]
     }
   ]

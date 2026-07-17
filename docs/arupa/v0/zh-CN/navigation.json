@@ -21,9 +21,10 @@
           "pages": [
             "docs/arupa/v0/zh-CN/kernel/config-kernel",
             "docs/arupa/v0/zh-CN/kernel/config-users",
+            "docs/arupa/v0/zh-CN/kernel/config-access",
             "docs/arupa/v0/zh-CN/kernel/config-pages",
             "docs/arupa/v0/zh-CN/kernel/config-plugins",
-            "docs/arupa/v0/zh-CN/kernel/config-access"
+            "docs/arupa/v0/zh-CN/kernel/config-logging"
           ]
         },
         "docs/arupa/v0/zh-CN/kernel/plugins",
@@ -37,7 +38,7 @@
         "docs/arupa/v0/zh-CN/plugin/plg",
         "docs/arupa/v0/zh-CN/plugin/proto",
         {
-          "group": "transports",
+          "group": "传输方式",
           "root": "docs/arupa/v0/zh-CN/plugin/transport",
           "pages": [
             "docs/arupa/v0/zh-CN/plugin/transport-static",
@@ -46,13 +47,14 @@
           ]
         },
         {
-          "group": "inter-plugin communication",
+          "group": "插件间通信",
           "root": "docs/arupa/v0/zh-CN/plugin/ipc",
           "pages": [
             "docs/arupa/v0/zh-CN/plugin/ipc-kv",
             "docs/arupa/v0/zh-CN/plugin/ipc-message"
           ]
-        }
+        },
+        "docs/arupa/v0/zh-CN/plugin/logging"
       ]
     }
   ]
