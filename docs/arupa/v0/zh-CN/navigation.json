@@ -54,7 +54,16 @@
             "docs/arupa/v0/zh-CN/plugin/ipc-message"
           ]
         },
-        "docs/arupa/v0/zh-CN/plugin/logging"
+        "docs/arupa/v0/zh-CN/plugin/logging",
+        {
+          "group": "惯例",
+          "root": "docs/arupa/v0/zh-CN/plugin/convention",
+          "pages": [
+            "docs/arupa/v0/zh-CN/plugin/convention-kv",
+            "docs/arupa/v0/zh-CN/plugin/convention-navigation",
+            "docs/arupa/v0/zh-CN/plugin/convention-styling"
+          ]
+        }
       ]
     }
   ]

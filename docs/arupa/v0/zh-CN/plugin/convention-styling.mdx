@@ -1,0 +1,77 @@
+---
+title: "样式"
+description: "了解插件页面的共享样式和主题约定。"
+---
+
+插件页面使用 Tailwind CSS 和 DaisyUI 作为通用样式库。
+Tailwind CSS 提供实用类，而 DaisyUI 提供组件样式和语义化的组件变体。
+
+Tailwind CSS 是推荐的插件页面样式层。
+DaisyUI 在插件需要其组件类时可用。对于拥有自身前端构建流程的插件，这两个库都不是必需的。
+
+必需条件是页面必须遵循下文所述的共享主题方案。
+
+## 共享样式资源
+
+应用程序当前发布以下前端资源：
+
+| 资源 | 用途 |
+| --- | --- |
+| `/assets/css/tailwindcss@4` | Tailwind CSS v4 浏览器运行时。 |
+| `/assets/css/daisyui@5.css` | DaisyUI v5 组件样式和语义实用程序。|
+| `/assets/css/scheme.css` | 共享的浅色和深色主题变量。|
+
+Tailwind 和 DaisyUI 资源提供了一种快速启动插件前端的方法。
+
+插件也可以编译自己的 CSS 和 JavaScript。这样的前端只需与 `/assets/css/scheme.css` 及其定义的主题状态保持兼容即可。
+
+## 主题方案
+
+共享主题方案位于 `/assets/css/scheme.css`。它定义了 `body.light` 和 `body.dark` 的变量。
+这些变量是应用程序页面和插件页面之间的视觉约定。
+
+```css
+
+body.dark {
+    --color-base-100: oklch(0.2161 0.0061 303.89);
+    --color-base-200: oklch(0.1456 0.0028 303.89);
+    --color-base-300: oklch(0.267 0.0058 303.89);
+    --color-base-content: oklch(97.747% 0.007 106.545);
+    --color-primary: oklch(0.7375 0.1677 303.89 / 0.2);
+    --color-primary-content: oklch(0.7375 0.1677 303.89);
+    --color-secondary: oklch(0.5453 0.1677 303.89 / 0.2);
+    --color-secondary-content: oklch(0.7375 0.1677 303.89);
+    --color-accent: oklch(83.392% 0.124 66.558);
+    --color-accent-content: oklch(16.678% 0.024 66.558);
+    --color-neutral: oklch(0.267 0.0037 303.89);
+    --color-neutral-content: oklch(0.7071 0.0027 303.89);
+    --color-info: oklch(0.6271 0.1699 248.3);
+    --color-info-content: oklch(17.652% 0.018 212.846);
+    --color-success: oklab(0.627052 -0.145969 0.0869672);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklab(0.68064 0.0348215 0.137956);
+    --color-warning-content: oklch(19.106% 0.026 112.757);
+    --color-error: oklch(0.6271 0.1699 25.79);
+    --color-error-content: oklch(13.644% 0.041 24.43);
+    --radius-selector: 0.5rem;
+    --radius-field: 0.5rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.21875rem;
+    --border: 1px;
+    --depth: 1;
+    --noise: 0;
+}
+```
+
+插件应使用语义变量而非固定颜色。
+
+## 主题切换
+
+所选主题通过浏览器存储，以键值 `arupa.theme` 共享。其值为 `light` 或 `dark`；默认值为 `light`。
+
+存储保存了应用程序范围的选择，而每个插件页面通过其自身的 `body.light` 或 `body.dark` 状态反映该选择。
+
+更改存储的值即可切换应用程序范围的主题。插件页面必须跟随更改，以便所有可见页面使用相同的主题。
+
+`web-sdk` 插件提供了一个便捷的 API，用于读取、写入和观察此存储值，但存储约定与SDK 无关。

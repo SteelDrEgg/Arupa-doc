@@ -38,7 +38,7 @@
         "docs/arupa/v0/en/plugin/plg",
         "docs/arupa/v0/en/plugin/proto",
         {
-          "group": "transports",
+          "group": "Transports",
           "root": "docs/arupa/v0/en/plugin/transport",
           "pages": [
             "docs/arupa/v0/en/plugin/transport-static",
@@ -47,14 +47,23 @@
           ]
         },
         {
-          "group": "inter-plugin communication",
+          "group": "Inter-Plugin Communication",
           "root": "docs/arupa/v0/en/plugin/ipc",
           "pages": [
             "docs/arupa/v0/en/plugin/ipc-kv",
             "docs/arupa/v0/en/plugin/ipc-message"
           ]
         },
-        "docs/arupa/v0/en/plugin/logging"
+        "docs/arupa/v0/en/plugin/logging",
+        {
+          "group": "Conventions",
+          "root": "docs/arupa/v0/en/plugin/convention",
+          "pages": [
+            "docs/arupa/v0/en/plugin/convention-kv",
+            "docs/arupa/v0/en/plugin/convention-navigation",
+            "docs/arupa/v0/en/plugin/convention-styling"
+          ]
+        }
       ]
     }
   ]

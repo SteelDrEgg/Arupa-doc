@@ -1,0 +1,46 @@
+---
+title: "Conventions"
+description: "Understand how plugins use shared conventions to cooperate outside the Kernel."
+---
+
+A convention is a shared agreement between plugins about names, data formats,
+metadata, URLs, or frontend behavior. The Kernel provides the plugin runtime,
+transports, IPC, and lifecycle.
+
+Plugins can build those features outside the Kernel by following the same
+conventions. One plugin publishes a resource or capability, and another plugin
+recognizes it by its agreed name and format.
+
+## Why conventions matter
+
+Conventions keep plugin integrations independent from a particular provider.
+A plugin can be replaced when the replacement publishes the same metadata and
+follows the same behavior. You can also add a custom provider or consumer
+without changing the Kernel or extending the plugin protocol.
+
+This makes conventions useful for application-level behavior such as:
+
+- publishing discoverable resource URLs;
+- exposing plugin pages in the application navigation;
+- sharing the application's visual theme and frontend styling;
+- providing optional browser-side helper behavior.
+
+The Kernel transports and IPC mechanisms remain the foundation, but the
+meaning of a convention belongs to the participating plugins.
+
+## Core plugin implementations
+
+The conventions in this section are currently implemented by `coreplugins`.
+They are recommended conventions for plugins that want to integrate with the
+standard application experience. They are not additional Kernel APIs, and a
+plugin should not depend on private implementation details of the provider.
+
+| Convention | Current implementation | Purpose |
+| --- | --- | --- |
+| [KV](./convention-kv) | Core resource and system plugins | Defines shared KV names and the metadata published for discoverable resources. |
+| [Navigation](./convention-navigation) | `navigator` | Defines the plugin manifest metadata used to expose a plugin page. |
+| [Styling](./convention-styling) | `web-assets` and `web-sdk` | Defines the shared frontend theme, styling resources, and theme state. |
+
+The implementation may change as long as the convention remains compatible.
+If you replace one of these plugins, preserve the keys, metadata meanings,
+URLs, or browser behavior that other plugins consume.

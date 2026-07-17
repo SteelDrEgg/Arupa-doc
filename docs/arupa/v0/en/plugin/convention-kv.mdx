@@ -1,0 +1,51 @@
+---
+title: "KV"
+description: "Reference the KV keys that plugins use to publish discoverable application metadata."
+---
+
+This page lists the KV conventions exposed by the Kernel and core plugins.
+Each entry defines what information a key represents and which component
+currently publishes it. For KV operations and storage behavior, see the [KV
+storage guide](./ipc-kv).
+
+## Kernel plugin records
+
+The Kernel publishes plugin metadata in the read-only `sys` namespace. These
+records let other components distinguish an available plugin package from a
+plugin instance that has registered with the Kernel.
+
+| Key pattern | Defined by | Meaning |
+| --- | --- | --- |
+| `sys/plugin/catalog/<plugin-name>` | Kernel | Metadata for a plugin package discovered during scanning. |
+| `sys/plugin/<instance-id>` | Kernel | Metadata for a loaded plugin instance and the resources it registered. |
+
+The catalog record describes package metadata, including the plugin identity,
+version, backend, contract version, command, package path, and manifest
+metadata. It does not indicate that the plugin is running.
+
+The running-instance record describes the registered instance and its
+resources, including routes, static mounts, and Socket.IO namespaces. The
+Kernel removes this record when the instance stops or is unloaded. A degraded
+instance can still have a record; the record reflects the resources that were
+registered successfully.
+
+## Published application metadata
+
+Plugins publish metadata under a namespace derived from the plugin that owns
+the resource. The following keys are the current conventions for resources
+that other plugins or frontend code may need to discover.
+
+| Key | Defined by | Value meaning |
+| --- | --- | --- |
+| `web-assets/urls` | `web-assets` plugin | A JSON object mapping each published web asset name to its public URL. |
+| `web-assets/style` | `web-assets` plugin | The public URL of the shared stylesheet. |
+| `web-assets/color-scheme` | `web-assets` plugin | The public URL of the color-scheme stylesheet. |
+| `web-assets/icon` | `web-assets` plugin | The public URL prefix for shared icons. |
+| `web-assets/culori` | `web-assets` plugin | The public URL of the Culori JavaScript resource. |
+| `web-sdk/urls` | `web-sdk` plugin | A JSON object mapping each SDK resource name to its public URL. |
+| `web-sdk/sdk` | `web-sdk` plugin | The public URL of the web SDK script. |
+| `web-sdk/languages` | `web-sdk` plugin | The public URL of the SDK language metadata. |
+
+The aggregate `urls` keys and their corresponding individual keys describe
+the same resource set. Use the aggregate key when discovering all resources;
+use an individual key when a specific resource is required.

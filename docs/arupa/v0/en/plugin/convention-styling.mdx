@@ -1,0 +1,82 @@
+---
+title: "Styling"
+description: "Understand the shared styling and theme conventions for plugin pages."
+---
+
+Plugin pages use Tailwind CSS and DaisyUI as the common styling vocabulary.
+Tailwind CSS provides utility classes, while DaisyUI provides component styles
+and semantic component variants.
+
+Tailwind CSS is the recommended styling layer for plugin pages. DaisyUI is
+available when a plugin needs its component classes. Neither library is a
+requirement for a plugin that has its own frontend build pipeline. The
+requirement is that the page follows the shared theme scheme described below.
+
+## Shared style resources
+
+The application currently publishes these frontend resources:
+
+| Resource | Purpose |
+| --- | --- |
+| `/assets/css/tailwindcss@4` | Tailwind CSS v4 browser runtime. |
+| `/assets/css/daisyui@5.css` | DaisyUI v5 component styles and semantic utilities. |
+| `/assets/css/scheme.css` | Shared light and dark theme variables. |
+
+The Tailwind and DaisyUI resources provide a quick way to start a plugin
+frontend. A plugin may instead compile its own CSS and JavaScript. Such a
+frontend only needs to remain compatible with `/assets/css/scheme.css` and the
+theme states it defines.
+
+## Theme scheme
+
+The shared theme scheme is available at `/assets/css/scheme.css`. It defines variables for
+`body.light` and `body.dark`. The variables are the visual contract between
+the application and plugin pages.
+
+```css
+body.dark {
+    --color-base-100: oklch(0.2161 0.0061 303.89);
+    --color-base-200: oklch(0.1456 0.0028 303.89);
+    --color-base-300: oklch(0.267 0.0058 303.89);
+    --color-base-content: oklch(97.747% 0.007 106.545);
+    --color-primary: oklch(0.7375 0.1677 303.89 / 0.2);
+    --color-primary-content: oklch(0.7375 0.1677 303.89);
+    --color-secondary: oklch(0.5453 0.1677 303.89 / 0.2);
+    --color-secondary-content: oklch(0.7375 0.1677 303.89);
+    --color-accent: oklch(83.392% 0.124 66.558);
+    --color-accent-content: oklch(16.678% 0.024 66.558);
+    --color-neutral: oklch(0.267 0.0037 303.89);
+    --color-neutral-content: oklch(0.7071 0.0027 303.89);
+    --color-info: oklch(0.6271 0.1699 248.3);
+    --color-info-content: oklch(17.652% 0.018 212.846);
+    --color-success: oklab(0.627052 -0.145969 0.0869672);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklab(0.68064 0.0348215 0.137956);
+    --color-warning-content: oklch(19.106% 0.026 112.757);
+    --color-error: oklch(0.6271 0.1699 25.79);
+    --color-error-content: oklch(13.644% 0.041 24.43);
+    --radius-selector: 0.5rem;
+    --radius-field: 0.5rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.21875rem;
+    --border: 1px;
+    --depth: 1;
+    --noise: 0;
+}
+```
+
+Plugins should use the semantic variables rather than fixed colors.
+
+## Theme switching
+
+The selected theme is shared through browser storage under the key
+`arupa.theme`. The value is `light` or `dark`; the effective default is
+`light`. Storage carries the application-wide choice, while each plugin page
+reflects that choice through its own `body.light` or `body.dark` state.
+
+Changing the stored value is the application-wide theme switch. Plugin pages
+must follow the change so that all visible pages use the same theme. The
+`web-sdk` plugin provides a convenience API for reading, writing, and
+observing this storage value, but the storage convention is independent of the
+SDK.
