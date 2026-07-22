@@ -9,14 +9,16 @@ description: "配置插件的启动、执行、访问权限和参数。"
 
 ```toml
 [Plugins]
-    [Plugins.default]
+  [Plugins.default]
     Restart = "no"
     RunAsUser = ""
-    [Plugins.hello]
+  [Plugins.hello]
     Restart = "no"
     RunAsUser = ""
     Allow = ["staff"]
-    [Plugins.hello.Params]
+    Checksum = "sha256:<digest>"
+
+  [Plugins.hello.Params]
     greeting = "env://HIHI?"
 ```
 
@@ -29,7 +31,8 @@ description: "配置插件的启动、执行、访问权限和参数。"
 合并规则如下：
 
 - 非空的 `Restart` 值会替换默认值；
-- 非空的 `RunAsUser` 值会替换默认值
+- 非空的 `RunAsUser` 值会替换默认值；
+- 非空的 `Checksum` 值会替换默认值；
 - 非空的 `Allow` 列表会替换默认的组列表；以及
 - `Params` 按键合并，插件级别的值优先。
 
@@ -70,6 +73,25 @@ RunAsUser = "arupa-plugin"
 
 此设置适用于 gRPC 插件进程。内核必须拥有以所选用户身份启动进程所需的操作系统权限。
 如果将此值留空，内核将不会切换用户。
+
+## `Checksum`
+
+`Checksum`（校验和）用于在内核解压或加载插件包之前验证其完整性。请将其设置为完整 `.plg` 归档文件的 SHA-256 摘要值（包含 `sha256:` 前缀）：
+
+```toml
+[Plugins.hello]
+Checksum = "sha256:<digest>"
+```
+
+该值必须采用 `sha256:<64位十六进制数字>` 的格式。算法名称和十六进制摘要值均不区分大小写。如果该值为空或未设置，则禁用验证功能。
+请将 `<digest>` 替换为您插件包对应的 64 位摘要值。
+
+请基于 `.plg` 文件本身（而非解压后的内容）计算摘要值。例如，`sha256sum hello.plg` 命令的输出结果即为应填入 `sha256:` 后面的摘要值。
+
+如果提供的校验和非空但不符合要求的格式，内核将拒绝该配置。
+
+当摘要值不匹配时，内核将拒绝加载或启动相应的插件。在大多数情况下，建议为每个插件单独设置校验和。
+虽然可以在 `[Plugins.default]` 中设置 `Checksum`，但该值会被所有未单独设置非空校验和的插件继承。
 
 ## `Allow`
 

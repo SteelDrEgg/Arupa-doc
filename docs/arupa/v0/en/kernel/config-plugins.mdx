@@ -16,6 +16,7 @@ The configuration for that name is then used when the plugin is loaded.
   [Plugins.hello]
     Restart = "no"
     RunAsUser = ""
+    Checksum = "sha256:<digest>"
     Allow = ["staff"]
 
     [Plugins.hello.Params]
@@ -32,6 +33,7 @@ The merge rules are:
 
 - a non-empty `Restart` value replaces the default;
 - a non-empty `RunAsUser` value replaces the default;
+- a non-empty `Checksum` value replaces the default;
 - a non-empty `Allow` list replaces the default group list; and
 - `Params` are merged by key, with the per-plugin value taking precedence.
 
@@ -77,6 +79,34 @@ user.
 This setting applies to gRPC plugin processes. The Kernel must have the
 operating-system permissions required to start a process as the selected user.
 If you leave the value empty, the Kernel does not switch users.
+
+## `Checksum`
+
+`Checksum` verifies the integrity of a plugin package before the Kernel
+extracts or loads it. Set it to the SHA-256 digest of the complete `.plg`
+archive, including the `sha256:` prefix:
+
+```toml
+[Plugins.hello]
+  Checksum = "sha256:<digest>"
+```
+
+The value must use the form `sha256:<64 hexadecimal digits>`. The algorithm
+name and hexadecimal digest are case-insensitive. An empty or omitted value
+disables verification. Replace `<digest>` with the 64-digit digest of your
+package.
+
+Calculate the digest from the `.plg` file itself, not from its extracted
+contents. For example, the output of `sha256sum hello.plg` is the digest to
+place after `sha256:`.
+
+The Kernel rejects the configuration if a non-empty checksum does not match
+the required format.
+
+When the digest does not match, the Kernel refuses to load or start that
+plugin. Use a per-plugin checksum in most cases. Although `Checksum` can be
+set in `[Plugins.default]`, that value is inherited by every plugin without
+its own non-empty checksum.
 
 ## `Allow`
 
@@ -140,5 +170,6 @@ variable name must not contain surrounding whitespace.
 The Kernel can reload the plugin configuration without rebuilding the HTTP
 server. A reload updates the effective configuration held by the plugin
 manager and refreshes the `Allow` groups for loaded plugins. Changes to
-`Params`, `RunAsUser`, or startup behavior are used when the plugin is next
-loaded or started; they do not rewrite an already running plugin process.
+`Params`, `RunAsUser`, `Checksum`, or startup behavior are used when the
+plugin is next loaded or started; they do not rewrite an already running plugin
+process.
