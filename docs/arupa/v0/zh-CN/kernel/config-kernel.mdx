@@ -21,8 +21,33 @@ PluginTempDir = "tmp"
 
 ```toml
 Listen = "127.0.0.1:8080"
-
 ```
+
+## `TLS`
+
+`TLS` 选项用于为 Kernel 服务器启用 HTTPS。当需要在私有网络中加密 Kernel 与客户端或反向代理之间的流量时，请将其设置为 `true`：
+
+```toml
+Listen = ":8080"
+TLS = true
+```
+
+启用该选项后，Kernel 每次启动时都会在内存中生成一个新的自签名证书。
+该证书适用于 `localhost`、`127.0.0.1` 和 `::1`，且服务器要求使用 TLS 1.2 或更高版本。证书和私钥不会写入磁盘。
+
+由于证书是自签名的且每次重启后都会变更，反向代理或隧道可能无法默认验证该证书。请配置代理使用 HTTPS 进行上游连接，并明确允许不受信任的源证书。
+仅当代理能够通过受信任的私有网络访问 Kernel 时，才应采取此做法。
+
+例如，配置一个禁用 TLS 验证的 NGINX 上游：
+
+```nginx
+location / {
+proxy_pass https://127.0.0.1:8080;
+proxy_ssl_verify off;
+}
+```
+
+如果 TLS 在反向代理处配置，且从该代理到 Kernel 的连接无需加密，请保持 `TLS = false`。
 
 ## `PluginDir`
 

@@ -9,6 +9,7 @@ configuration file:
 
 ```toml
 Listen = ":8080"
+TLS = false
 PluginDir = "plugins"
 PluginTempDir = "tmp"
 ```
@@ -24,6 +25,40 @@ particular interface:
 ```toml
 Listen = "127.0.0.1:8080"
 ```
+
+## `TLS`
+
+`TLS` enables HTTPS for the Kernel server. Set it to `true` when you need to
+encrypt traffic between the Kernel and clients or a reverse proxy on a private
+network:
+
+```toml
+Listen = ":8080"
+TLS = true
+```
+
+When enabled, the Kernel creates a new self-signed certificate in memory each
+time it starts. The certificate is valid for `localhost`, `127.0.0.1`, and
+`::1`, and the server requires TLS 1.2 or later. The certificate and private
+key are not written to disk.
+
+Because the certificate is self-signed and changes after every restart, a
+reverse proxy or tunnel may not be able to verify it by default. Configure the proxy to use HTTPS for
+the upstream connection and explicitly allow the untrusted origin certificate.
+Only do this when the proxy can reach the Kernel through a trusted private
+network.
+
+For example, configure an NGINX upstream with TLS verification disabled:
+
+```nginx
+location / {
+    proxy_pass https://127.0.0.1:8080;
+    proxy_ssl_verify off;
+}
+```
+
+Keep `TLS = false` when TLS terminates at the reverse proxy and the connection
+from that proxy to the Kernel does not need encryption.
 
 ## `PluginDir`
 
