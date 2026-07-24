@@ -1,0 +1,138 @@
+---
+title: "Protocol"
+description: "Understand how the Kernel and a service communicate."
+---
+
+`wasm` and `grpc` services talk to the Kernel through a shared contract. As a
+service developer, you use the generated SDK for your chosen runtime rather
+than building the wire format yourself; this page describes the shape of that
+contract so you know what your service can expect and what it is responsible
+for. `static` services do not use this protocol at all — see [Static
+services](./static-service).
+
+## Two directions of communication
+
+```text
+Kernel ── requests and events ──────────────▶ Your service
+Kernel ◀─ shared-capability calls ──────────── Your service
+```
+
+Incoming HTTP requests and Socket.IO events are handed to your service as
+typed messages, and your handlers return typed messages back. Separately,
+whenever your service needs something the Kernel owns — key-value storage,
+logging, emitting a Socket.IO event, calling another service — it calls back
+into the Kernel through the same generated SDK. Keep feature-specific state
+and behavior in your service; use the Kernel side of the contract only for
+capabilities the Kernel actually owns.
+
+## Startup: identity handshake
+
+When the Kernel starts a `wasm` or `grpc` service, the service performs a
+short identity handshake: it confirms its name and version, and receives
+whatever the Kernel needs to hand it, such as configured parameters. This
+handshake does not, by itself, declare what the service serves.
+
+## While running: declaring transports and routes
+
+After the handshake, the service tells the Kernel what it exposes by
+registering transports and routes through the Kernel's side of the contract,
+and can add or remove them again at any point while it keeps running — not
+only once at startup. See [Routes and transports](./routing) for what a
+transport and a route each contain and how they relate. A transport or route
+that fails to register does not stop the service from running; it marks the
+service `degraded` while its other resources keep working.
+
+Shutting down cleanly is symmetric: a service should remove routes before the
+transport they depend on, and the Kernel forcibly cleans up anything left
+behind when a service session ends, so a stopped or crashed service cannot
+leave dead routes reachable.
+
+## Handling requests and events
+
+Once a route is registered, matching HTTP requests and Socket.IO events are
+converted into typed messages and delivered to your service's handlers:
+
+- An HTTP request carries the method, path, query, headers, body, and the
+  authenticated user, if any. Your handler returns a status, headers, and a
+  body. Request and response bodies are exchanged as complete messages, not a
+  stream — keep payloads within the Kernel's size limit, described on the
+  [HTTP transport](./transport-http) page.
+- A Socket.IO event carries the namespace, event name, sending socket, and
+  the authenticated user, if any. Your handler can reply with one or more
+  emit instructions, each targeting either one socket or the whole namespace.
+
+## Choose a runtime
+
+Both `wasm` and `grpc` services use the same contract; only how it crosses the
+process boundary differs.
+
+### gRPC
+
+You can implement a `grpc` service in any language with Protobuf and gRPC
+support. The service runs as a separate process and communicates with the
+Kernel over gRPC. Use your language's Protobuf and gRPC tooling to generate or
+implement the contract types, then set `Type: grpc` in the service manifest.
+
+### WASM
+
+Arupa currently supports Go for WASM services. Use the Go SDK generated for
+the Arupa contract and compile the service to WASM. The WASM integration is
+based on [`knqyf263/go-plugin`](https://github.com/knqyf263/go-plugin), which
+generates Go interfaces and hides the raw WASM communication behind the SDK.
+
+Follow the development model described in the
+[guide](https://github.com/knqyf263/go-plugin): define or consume the
+contract, generate the Go bindings, implement the generated interface, and
+compile the implementation as a WASM module. Set `Type: wasm` in the service
+manifest.
+
+The transport changes, but the message types and their meaning stay the same.
+Choose the SDK and build process that match the `Type` in your manifest.
+
+## Use the generated SDK
+
+Treat generated files as build artifacts. Do not edit them by hand. If you
+need a newly added message or field, regenerate the SDK from the matching
+schema and rebuild your service.
+
+Set `ContractVersion` in `info.yaml` to the protocol version used by your
+service. The version must be supported by the Kernel that will load the
+package. The manifest version and the generated SDK should always be updated
+together.
+
+Using the generated SDK gives your service:
+
+- typed request and response values;
+- consistent serialization with the Kernel;
+- runtime-specific communication handled for you; and
+- one programming model regardless of `Type`.
+
+## Keep your service compatible
+
+When you consume a newer contract, remember that fields are identified by
+number, not only by name:
+
+- keep existing field numbers assigned to their original meaning;
+- do not reuse the number of a removed field;
+- add new fields with new numbers; and
+- allow your service to ignore fields it does not need when the change is
+  backward-compatible.
+
+Do not change the meaning or type of an existing field in your service's
+local assumptions. If a change is not backward-compatible, use the
+corresponding new contract version and rebuild the service against it.
+
+## Typical development flow
+
+1. Choose `wasm` or `grpc` and use the matching generated SDK.
+2. Implement the contract and your feature logic with the SDK types.
+3. Register the transports and routes your service provides, and keep them up
+   to date if what the service exposes changes while it runs.
+4. Use Host bindings whenever your feature needs a Kernel-owned capability.
+5. Set the matching `ContractVersion` in the service manifest.
+6. Build and package the service, then load it with a Kernel that supports
+   that contract version.
+
+The important boundary is simple: your service implements behavior, while the
+protocol and the generated SDK carry typed data between your code and the
+Kernel.

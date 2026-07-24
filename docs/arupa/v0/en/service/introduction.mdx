@@ -1,0 +1,60 @@
+---
+title: "Introduction"
+description: "Understand the role of Services."
+---
+
+A service is a deployable unit that adds a feature to an Arupa application. It
+contains the feature-specific code, while the Arupa Kernel provides the shared
+runtime and application integration. This keeps the Kernel responsible for
+common concerns and lets services focus on their own business logic.
+
+The Kernel manages the service lifecycle: it loads the service package, starts
+the selected runtime, and connects the transports and routes the service
+declares to the application. A service can expose HTTP routes, static
+resources, Socket.IO namespaces and events, and a proxied upstream. The Kernel
+dispatches matching requests and events to the corresponding service and
+enforces the access policy declared for each route.
+
+## Runtime types
+
+A service uses one of three runtime types, set as `Type` in its package
+metadata:
+
+- `wasm` and `grpc` services run service-provided code. They perform an
+  identity handshake with the Kernel when they start, and then use Kernel
+  APIs to declare and update the transports and routes they own while they
+  keep running.
+- `static` services run no code at all. They declare their transports and
+  routes once, up front, in a package manifest, and the Kernel serves them
+  directly. See [Static services](./static-service) for how this runtime
+  type works and when to use it.
+
+## Transports and routes
+
+A service's resources are described by two related concepts:
+
+- A **transport** is an endpoint the service owns: a static file source, an
+  HTTP handler, a Socket.IO connection, or a proxied upstream.
+- A **route** binds a URL pattern or a Socket.IO namespace to one of the
+  service's transports, and carries the access policy for that binding.
+
+Separating the two lets one transport serve more than one route, and lets a
+service change its routes without tearing down the underlying connection. See
+[Routes and transports](./routing) for the full relationship, and
+[Transports](./transport) for the specific transport types available,
+including the `proxy` transport that streams traffic to an upstream owned by
+the service.
+
+## Communication
+
+`wasm` and `grpc` services implement the same protocol; see
+[Protocol](./protocol) for how the Kernel and a service communicate, and use
+the Kernel's Host API when they need shared application capabilities such as
+logging, key-value storage, configuration parameters, Socket.IO messages, or
+[inter-service communication](./isc) with another service.
+
+Each service is described by a manifest containing metadata such as its name,
+version, runtime type, contract version, and, for `wasm` and `grpc` services,
+the command used to start it. The manifest and runtime artifact are packaged
+together so the Kernel can discover and load the service as a single unit;
+see [Service package](./package) for the package format.

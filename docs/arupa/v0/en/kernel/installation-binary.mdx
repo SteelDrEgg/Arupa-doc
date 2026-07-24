@@ -5,7 +5,7 @@ description: "Install and start the Arupa Kernel from a released binary on Linux
 
 Use this method to run the Arupa Kernel directly on a Linux or macOS host.
 The release contains one executable file. It does not include a configuration
-file or plugins, so you create the Kernel directory and its initial files in
+file or services, so you create the Kernel directory and its initial files in
 the following steps.
 
 ## Before you begin
@@ -49,7 +49,7 @@ arupa-v0.2.0-darwin-arm64
 
 ## 2. Create the Kernel directory
 
-Keep the executable, configuration, plugin packages, and temporary extraction
+Keep the executable, configuration, service packages, and temporary extraction
 files together in one directory. The following commands create an `arupa`
 directory in your home directory and move the example download into it:
 
@@ -79,10 +79,10 @@ official release page.
 ## 4. Create the initial configuration
 
 The Kernel reads a TOML configuration file. Create the two directories used by
-the default plugin settings:
+the default service settings:
 
 ```sh
-mkdir plugins
+mkdir services
 mkdir tmp
 ```
 
@@ -90,13 +90,13 @@ Create a file named `config.toml` in `~/arupa` and add the following content:
 
 ```toml
 Listen = ":8080"
-PluginDir = "plugins"
-PluginTempDir = "tmp"
+ServiceDir = "services"
+ServiceTempDir = "tmp"
 ```
 
 `Listen` is the address and port where the Kernel accepts HTTP and Socket.IO
-connections. `PluginDir` holds downloaded `.plg` plugin packages. The Kernel
-uses `PluginTempDir` while it loads those packages. These relative paths are
+connections. `ServiceDir` holds downloaded `.plg` service packages. The Kernel
+uses `ServiceTempDir` while it loads those packages. These relative paths are
 resolved from `~/arupa`, because that is the directory where you run the
 Kernel.
 
@@ -120,9 +120,9 @@ terminal to stop the Kernel.
 
 ## Next steps
 
-The Kernel is now ready for plugin packages. Continue with the [Coreplugins
+The Kernel is now ready for service packages. Continue with the [Coreplugins
 documentation](../../../../coreplugins/v0/en/introduction), then follow [Install a
-plugin](./plugins#install-a-plugin) to add a package to the `plugins`
+service](./services#install-a-service) to add a package to the `services`
 directory.
 
 Before exposing the Kernel outside your local machine, configure [users](./config-users)

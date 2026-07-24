@@ -7,7 +7,7 @@ Use Docker when you want the Arupa Kernel and its runtime dependencies to run
 inside a container. The image is published at
 [`ghcr.io/steeldregg/arupa`](https://ghcr.io/steeldregg/arupa).
 
-The container stores its configuration, plugin packages, and temporary plugin
+The container stores its configuration, service packages, and temporary service
 files in `/data`. This guide uses a Docker named volume so those files remain
 available when you replace the container.
 
@@ -49,8 +49,8 @@ docker volume create arupa-data
 Docker keeps this volume after the container is removed. It will hold:
 
 - `config.toml`, the Kernel configuration file;
-- `plugins`, the directory for `.plg` plugin packages; and
-- `tmp`, the directory used while the Kernel loads plugin packages.
+- `services`, the directory for `.plg` service packages; and
+- `tmp`, the directory used while the Kernel loads service packages.
 
 To print the volume's storage location, run:
 
@@ -80,12 +80,12 @@ Add the following configuration:
 
 ```toml
 Listen = ":8080"
-PluginDir = "plugins"
-PluginTempDir = "tmp"
+ServiceDir = "services"
+ServiceTempDir = "tmp"
 ```
 
-`Listen` is the HTTP and Socket.IO address inside the container. `PluginDir`
-and `PluginTempDir` are relative to `/data`, which is the container's working
+`Listen` is the HTTP and Socket.IO address inside the container. `ServiceDir`
+and `ServiceTempDir` are relative to `/data`, which is the container's working
 directory.
 
 ## 4. Create and start the container
@@ -129,9 +129,9 @@ curl http://127.0.0.1:8080/api/kernel/version
 
 The response includes the running Kernel version.
 
-## Edit configuration and add plugin packages
+## Edit configuration and add service packages
 
-The named volume holds both the configuration and plugin packages. The
+The named volume holds both the configuration and service packages. The
 following commands work on Linux, macOS, and Windows with Docker Desktop.
 
 To edit the configuration, copy it out of the container, edit the local copy,
@@ -144,17 +144,17 @@ docker cp ~/arupa-docker/config.toml arupa:/data/config.toml
 docker restart arupa
 ```
 
-To add a downloaded plugin package, copy its `.plg` file into `/data/plugins`.
+To add a downloaded service package, copy its `.plg` file into `/data/services`.
 For example:
 
 ```sh
-docker cp ~/Downloads/example.plg arupa:/data/plugins/example.plg
+docker cp ~/Downloads/example.plg arupa:/data/services/example.plg
 docker restart arupa
 ```
 
 On a Linux Docker host, you can instead copy the package directly to the
-`plugins` directory beneath the `Mountpoint` reported by `docker volume
-inspect arupa-data`. Restart the container after changing plugin files so the
+`services` directory beneath the `Mountpoint` reported by `docker volume
+inspect arupa-data`. Restart the container after changing service files so the
 Kernel scans the directory again.
 
 ## Manage the container
@@ -169,13 +169,13 @@ docker rm arupa
 
 Removing the container does not remove the `arupa-data` volume. When you
 create a replacement container with the same `--volume arupa-data:/data`
-option, it reuses the existing configuration and plugin data.
+option, it reuses the existing configuration and service data.
 
 ## Next steps
 
-The Kernel is ready for plugin packages. Continue with the [Coreplugins
+The Kernel is ready for service packages. Continue with the [Coreplugins
 documentation](../../../../coreplugins/v0/en/index), then follow [Install a
-plugin](./plugins#install-a-plugin).
+service](./services#install-a-service).
 
 Before exposing the host port outside your local machine, configure [users](./config-users)
 and [access rules](./config-access).

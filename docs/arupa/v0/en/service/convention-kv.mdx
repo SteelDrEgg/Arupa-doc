@@ -1,0 +1,50 @@
+---
+title: "KV"
+description: "Reference the KV keys that services use to publish discoverable application metadata."
+---
+
+This page lists the KV conventions exposed by the Kernel and core services.
+Each entry defines what information a key represents and which component
+currently publishes it. For KV operations and storage behavior, see the [KV
+storage guide](./isc-kv).
+
+## Kernel service records
+
+The Kernel publishes service metadata in the read-only `sys` namespace. These
+records let other components distinguish an available service package from a
+service instance that has registered with the Kernel.
+
+| Key pattern | Defined by | Meaning |
+| --- | --- | --- |
+| `sys/service/catalog/<service-name>` | Kernel | Metadata for a service package discovered during scanning. |
+| `sys/service/<instance-id>` | Kernel | Metadata for a loaded service instance and the routes and transports it registered. |
+
+The catalog record describes package metadata, including the service
+identity, version, runtime type, contract version, command, package path,
+and manifest metadata. It does not indicate that the service is running.
+
+The running-instance record describes the registered instance and its
+routes and transports. The Kernel removes this record when the instance
+stops or is unloaded. A degraded instance can still have a record; the
+record reflects the routes and transports that were registered successfully.
+
+## Published application metadata
+
+Services publish metadata under a namespace derived from the service that
+owns the resource. The following keys are the current conventions for
+resources that other services or frontend code may need to discover.
+
+| Key | Defined by | Value meaning |
+| --- | --- | --- |
+| `web-assets/urls` | `web-assets` service | A JSON object mapping each published web asset name to its public URL. |
+| `web-assets/style` | `web-assets` service | The public URL of the shared stylesheet. |
+| `web-assets/color-scheme` | `web-assets` service | The public URL of the color-scheme stylesheet. |
+| `web-assets/icon` | `web-assets` service | The public URL prefix for shared icons. |
+| `web-assets/culori` | `web-assets` service | The public URL of the Culori JavaScript resource. |
+| `web-sdk/urls` | `web-sdk` service | A JSON object mapping each SDK resource name to its public URL. |
+| `web-sdk/sdk` | `web-sdk` service | The public URL of the web SDK script. |
+| `web-sdk/languages` | `web-sdk` service | The public URL of the SDK language metadata. |
+
+The aggregate `urls` keys and their corresponding individual keys describe
+the same resource set. Use the aggregate key when discovering all resources;
+use an individual key when a specific resource is required.

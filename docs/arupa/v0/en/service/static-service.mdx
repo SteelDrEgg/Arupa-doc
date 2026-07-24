@@ -1,0 +1,108 @@
+---
+title: "Static services"
+description: "Package resources with no service code at all, using the static runtime type."
+---
+
+`static` is a service runtime type, set as `Type: static` in `info.yaml`,
+alongside `wasm` and `grpc`. A static service has no process and no module to
+start. It exists purely to package a fixed set of transports and routes —
+most often files, but a static service can also declare a fixed proxy — and
+have the Kernel serve them without any service code running at all.
+
+This is a different concept from a **static transport**, which is one of the
+four transport types and can be registered by a service of any runtime type.
+A `wasm` or `grpc` service can register a static transport for its bundled
+assets while handling other routes dynamically. A `static` *service*, by
+contrast, has no other kind of route to handle — everything it exposes is
+declared up front.
+
+## When to use it
+
+Reach for a static service when a feature is entirely packaged content with
+no request-time logic: documentation bundles, prebuilt single-page apps,
+shared icon or font packages, or a fixed proxy to an already-running backend
+that the Kernel does not need to start itself. If any route needs to inspect
+a request, compute a response, or call another service, use `wasm` or `grpc`
+instead.
+
+## Declaring resources with `manifest.yaml`
+
+A static service declares its transports and routes in `manifest.yaml`,
+placed at the package root next to `info.yaml`:
+
+```text
+docs.plg
+├── info.yaml
+├── manifest.yaml
+└── Content/
+    └── public/
+        └── index.html
+```
+
+`info.yaml` still identifies the package, but omits `Command`:
+
+```yaml
+Name: docs
+Version: 1.0.0
+Type: static
+ContractVersion: 2
+```
+
+`manifest.yaml` lists the transports the service owns and the routes that
+bind them to URLs:
+
+```yaml
+version: 1
+transports:
+  - id: assets
+    type: static
+    source: public
+routes:
+  - id: site
+    transport: assets
+    http:
+      pattern: /
+```
+
+Each entry follows the same shape described in [Routes and
+transports](./routing): a transport has an `id`, a `type`, and type-specific
+configuration, and a route binds a `transport` id to an HTTP pattern or a
+Socket.IO namespace. A static transport's `source` is a path relative to the
+package's extracted `Content` directory — the same root referenced by
+`$PLUGIN_ROOT` elsewhere in the package.
+
+A `manifest.yaml` route is not limited to the `static` transport type. A
+`proxy` transport with a `unix` or `tcp` target can also be declared here,
+because those targets point at an address that is already listening
+somewhere else — there is no process for the Kernel to start, so nothing
+needs to be inherited. An `inherited` proxy target only makes sense for a
+`grpc` service that the Kernel is starting, so it does not apply to a static
+service.
+
+## How loading differs from `wasm` and `grpc`
+
+For a `wasm` or `grpc` service, the Kernel starts the runtime, performs an
+identity handshake, and then the service registers its transports and routes
+while running — see [Protocol](./protocol). A static service skips all of
+that: the Kernel reads `manifest.yaml` directly and registers its declared
+transports and routes through the same underlying mechanism, without any
+handshake or running process on the other end.
+
+This also changes which per-service settings in
+[Service configuration](../kernel/config-services) apply:
+
+- `RunAsUser` has no effect, because there is no process to start as a
+  particular operating-system user.
+- `Checksum` still applies, since it verifies the `.plg` archive itself
+  rather than anything about the runtime.
+- `Restart` still controls whether the service is loaded automatically at
+  Kernel startup, even though "starting" a static service only means
+  registering its manifest.
+
+## Conflicts and cleanup
+
+A static service's routes participate in the same conflict rules as any
+other service's routes — see [Routes and transports](./routing) for path
+ownership and the static-versus-non-static conflict rule. Stopping a static
+service removes its routes and transports the same way stopping any other
+service does, even though nothing was actually running.

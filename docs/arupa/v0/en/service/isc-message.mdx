@@ -1,0 +1,124 @@
+---
+title: "Messages"
+description: "Send synchronous point-to-point messages between running services."
+---
+
+Messages provide synchronous, point-to-point communication between services
+running in the same Kernel. A sending service names one target service, sends
+a topic and a byte payload, and waits for the target to return a reply.
+
+Use messages when one service needs another service to perform an operation
+or return data. Use [KV storage](./isc-kv) when the data should be shared as
+state instead of delivered as a request.
+
+## Message envelope
+
+The message is the `ServiceMessage` described in [Protocol](./protocol):
+
+| Field | Meaning |
+| --- | --- |
+| `source` | Name of the sending service. The Kernel sets this value. |
+| `target` | Name of the service that must receive the message. |
+| `topic` | Application-defined operation or message type. |
+| `payload` | Application-defined request data. |
+
+The target receives a `ServiceMessageReply`:
+
+| Field | Meaning |
+| --- | --- |
+| `error` | Error reported by the target. A non-empty value makes the send fail. |
+| `message` | Application-defined response text or serialized result. |
+
+The Kernel does not interpret `topic`, `payload`, or `message`. Define their
+format between the participating services. You can use JSON, a generated
+message type, text, or another encoding, but the sender and target must
+agree on it.
+
+## Send a message
+
+To send a message:
+
+1. choose the registered name of the target service;
+2. choose a stable topic name;
+3. encode the request into `payload`; and
+4. send the envelope through the generated host binding for your runtime.
+
+The sender waits while the Kernel dispatches the message to the target's
+message handler. A successful reply contains the target's `message` value.
+The source service cannot choose or override its identity; the Kernel
+replaces the source field with the authenticated name of the calling
+service.
+
+## Receive a message
+
+The target service receives the same envelope, including the
+Kernel-provided `source`. It should:
+
+1. verify that the source service is allowed to request the operation;
+2. route the message by `topic`;
+3. decode and validate `payload`; and
+4. return either a result or an error.
+
+The Kernel does not provide topic subscriptions or automatic dispatch inside
+the service. The target's message handler receives messages for that service
+and is responsible for interpreting the topic. Only `wasm` and `grpc`
+services can receive messages this way — a `static` service has no handler
+to dispatch to.
+
+## Errors and delivery
+
+Messages are delivered only to a currently running target service. The send
+fails when:
+
+- `target` is empty;
+- the target service is not running;
+- the target handler returns a transport or execution error; or
+- the target reply contains a non-empty `error` field.
+
+The target's `error` value is returned to the sender as an error. A message is
+not delivered to another service when the target is unavailable.
+
+Messages are not queued, retried, broadcast, or persisted. There is no
+durable delivery guarantee. If the target stops while a message is in flight,
+the call context is canceled with the target service's lifecycle.
+
+## Backend behavior
+
+The message semantics are identical for both service runtimes:
+
+- a WASM service sends through generated host bindings; and
+- a gRPC service sends through the Kernel's host callback channel.
+
+The Kernel then invokes the target service through its runtime and converts
+the target's reply back into the sender's runtime-specific response type.
+
+## Identity and authorization
+
+The Kernel authenticates the source service at the host boundary. A service
+cannot impersonate another service by writing a different `source` value into
+a send request.
+
+There is no Kernel-level access policy for individual topics. Any running
+service can address another running service by name, so the target must
+enforce authorization in its own handler when a topic or payload represents a
+privileged operation. Treat `topic` as routing information, not as an access
+control mechanism.
+
+## Design a message contract
+
+Keep a message contract explicit and versionable:
+
+```text
+target:  secret-manager
+topic:   secret.get
+payload: {"name":"database"}
+reply:   {"value":"..."}
+```
+
+Document the payload schema, required fields, response format, and error
+meaning for every topic. Validate untrusted payloads before using them, and
+return an explicit error for unknown or malformed topics.
+
+Use a stable target name and topic namespace. If a request can be safely
+repeated, make the operation idempotent because the sender may need to retry
+it at the application level after a temporary target failure.

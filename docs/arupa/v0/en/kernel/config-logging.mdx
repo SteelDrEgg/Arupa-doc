@@ -1,9 +1,9 @@
 ---
 title: "Logging"
-description: "Configure structured Kernel and plugin logs."
+description: "Configure structured Kernel and service logs."
 ---
 
-Arupa writes Kernel and plugin logs through one structured logger. The default
+Arupa writes Kernel and service logs through one structured logger. The default
 output is JSON, so records can be collected and searched by field. You can
 switch to text output when reading logs directly in a terminal.
 
@@ -30,7 +30,7 @@ Configuration errors are reported when the configuration is loaded. At
 startup, invalid logging settings cause the Kernel to use its defaults. During
 a reload, an invalid configuration leaves the current configuration in effect.
 Changes to `[Log]` take effect when the Kernel creates its logger at startup;
-reloading the configuration updates runtime settings such as plugins, but does
+reloading the configuration updates runtime settings such as services, but does
 not replace the logger that is already running.
 
 ## Common fields
@@ -46,20 +46,22 @@ identifies the Kernel subsystem. Common values include:
 
 - `http` for HTTP access records;
 - `socketio` for Socket.IO connection and event records;
-- `plugin_manager` for plugin discovery and lifecycle records; and
+- `service_manager` for service discovery and lifecycle records; and
 - `config`, `server`, and `cli` for configuration, server, and command-line
   activity.
 
-Logs emitted by a plugin through the authenticated host boundary use:
+Logs emitted by a service through the authenticated host boundary use:
 
 ```text
-component=plugin from=<plugin-name>
+component=service from=<service-name>
 ```
 
-The Kernel derives the plugin name from the authenticated gRPC callback or the
-WASM binding context. A plugin cannot change this attribution by supplying a
-different source name. The plugin protocol itself is unchanged; attribution is
-added by the Kernel's host logging layer.
+The Kernel derives the service name from the authenticated gRPC callback or the
+WASM binding context. A service cannot change this attribution by supplying a
+different source name. This applies to `wasm` and `grpc` services; a `static`
+service has no running process and so never emits its own log records. The
+service protocol itself is unchanged; attribution is added by the Kernel's
+host logging layer.
 
 ## Debug source locations
 
@@ -71,14 +73,15 @@ increases log volume as well.
 Do not confuse `source` with `from`:
 
 - `source` is the debug-only logger call location; and
-- `from` is the stable Kernel subsystem or plugin identity.
+- `from` is the stable Kernel subsystem or service identity.
 
 At `info`, `warn`, and `error` levels, the call-site `source` field is omitted.
 
 ## HTTP access logs
 
 The Kernel emits one access record after every HTTP request, including requests
-handled by Kernel routes, plugin HTTP handlers, static mounts, and the
+handled by Kernel routes and service routes, whether a route is handled
+dynamically or serves packaged files through a static transport, and the
 Socket.IO HTTP endpoint.
 
 Each record contains:
@@ -111,17 +114,17 @@ Socket.IO records use `component=kernel` and `from=socketio`. The Kernel logs:
 - unavailable namespaces and rejected connections at `WARN`;
 - malformed or undeclared events at `DEBUG`;
 - successful event handling at `DEBUG`, including the namespace, event,
-  plugin, and `duration_ms`; and
-- plugin handler, payload-processing, or emit failures at `ERROR` when the
+  service, and `duration_ms`; and
+- service handler, payload-processing, or emit failures at `ERROR` when the
   Kernel cannot complete the operation.
 
 Successful event logs never include event payloads. Error records also avoid
-logging payload data. Use the plugin's own structured logging when you need a
+logging payload data. Use the service's own structured logging when you need a
 deliberate, sanitized application-level diagnostic.
 
 ## Choosing a level
 
-Use `info` for normal operation. It includes HTTP access records, plugin
+Use `info` for normal operation. It includes HTTP access records, service
 lifecycle records, and Socket.IO connection state without logging successful
 Socket.IO events.
 

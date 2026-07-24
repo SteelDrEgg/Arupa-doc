@@ -1,0 +1,100 @@
+---
+title: "Logging"
+description: "Write service diagnostics through the Kernel's unified logger."
+---
+
+Services should write diagnostics through the logging capability provided by
+the Kernel. This sends service log records into the same structured log
+stream as Kernel messages, regardless of whether the service runs as WASM or
+gRPC. A `static` service has no running code and never emits its own log
+records.
+
+The service logging boundary accepts a level and a message. The service does
+not choose the output format, configure the global log level, or write the
+`component` and `from` fields itself.
+
+## Log levels
+
+Use the level that describes the operational meaning of the message:
+
+| Level | Use for |
+| --- | --- |
+| `debug` | Diagnostic details useful while investigating behavior. |
+| `info` | Normal lifecycle and meaningful state changes. |
+| `warn` | Recoverable problems or conditions that need attention. |
+| `error` | Failed operations or conditions that prevent the intended work. |
+
+The Kernel filters service records using the global `[Log].Level` setting. For
+example, a service's `debug` record is not emitted while the Kernel is running
+at `info`. See [Logging configuration](../kernel/config-logging) for the
+global format, level, and output behavior.
+
+Use `info` sparingly for events that operators need during normal operation.
+Do not emit one informational record for every internal step or request when
+the Kernel already provides an access or transport log for that activity.
+
+## Service identity in logs
+
+The Kernel adds these fields to every service log record:
+
+```text
+component=service from=<service-name>
+```
+
+`from` is the registered service identity. For gRPC services, the Kernel
+derives it from the authenticated host callback. For WASM services, it comes
+from the service context established by the Kernel. A service cannot replace
+this value with an arbitrary source name.
+
+The same identity is used in JSON and text output. For example, a JSON record
+may look like:
+
+```json
+{
+  "level": "INFO",
+  "msg": "service initialized",
+  "component": "service",
+  "from": "my-service"
+}
+```
+
+## Messages and structured context
+
+The current service logging contract carries the log level and one message
+string. It does not provide an arbitrary key-value attribute map for service
+records. Keep messages concise and include stable context when it is needed to
+understand the event:
+
+```text
+cache refresh completed: items=24 source=remote
+```
+
+Do not include passwords, tokens, request bodies, Socket.IO payloads, secret
+values, or other sensitive data in a message. Logs are centralized at the
+Kernel and may be collected outside the service's process.
+
+## Debug source locations
+
+When the Kernel uses `Level = "debug"`, its logger adds the `source` field to
+records. This is the logger call site in the Kernel's host layer. It can help
+diagnose the host boundary, but it is not a reliable file and line location in
+the service's own source code.
+
+Use message context to identify the service operation you are diagnosing. Do
+not rely on the debug `source` field as a service stack trace.
+
+## Logging failures
+
+Logging should not replace error handling. Return or propagate an error when an
+operation fails, and add a log record when the failure needs operator
+visibility. Include enough context to identify the operation without exposing
+its input data.
+
+Use `warn` when the service can continue with a fallback. Use `error` when the
+operation failed and the service cannot provide the intended result. Use
+`debug` for successful diagnostic paths that would be too noisy at `info`.
+
+The Kernel supplies the same logging behavior to both `wasm` and `grpc`
+services. Your service's logging code should use the generated host binding
+for its selected runtime rather than writing directly to a runtime-specific
+output stream.

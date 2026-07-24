@@ -1,28 +1,29 @@
 ---
 title: "Quickstart"
-description: "Learn how the Arupa Kernel and plugins work together."
+description: "Learn how the Arupa Kernel and services work together."
 ---
 
-Arupa is a modular web system that consists of a single kernel and a set of applications called plugins.
-The kernel handles user management and authentication, and provides secure communication between plugins;
-plugins are hot-swappable — installed, updated, or removed without restarting the kernel.
+Arupa is a modular web system that consists of a single kernel and a set of applications called services.
+The kernel handles user management and authentication, and provides secure communication between services;
+services are hot-swappable — installed, updated, or removed without restarting the kernel.
 Everything runs under one service address, with no need to configure separate ports, proxies, or logins.
 
 ## The Kernel
 
 The Arupa Kernel is the host process. It provides the HTTP and Socket.IO
-server, loads plugins, and applies shared authentication and access rules.
+server, loads services, and applies shared authentication and access rules.
 The Kernel does not provide a complete management interface by itself.
 
-## Plugins
+## Services
 
-Plugins are packages that add features to the Kernel. A plugin can provide
-HTTP routes, static files, and Socket.IO namespaces. Core plugins provide the
-essential parts of an Arupa installation; you can add more plugins as needed.
+Services are packages that add features to the Kernel. A service can provide
+HTTP routes, static files, Socket.IO namespaces, and a proxy to a server it
+already runs. Core services provide the essential parts of an Arupa
+installation; you can add more services as needed.
 
 ## What to do next
 
 1. [Install the Kernel](./kernel/installation) with a binary or Docker.
 2. Get the packages you need from the [Coreplugins documentation](../../../coreplugins/v0/en/introduction).
-3. [Install the plugin packages](./kernel/plugins#install-a-plugin) and configure
+3. [Install the service packages](./kernel/services#install-a-service) and configure
    users and access rules before making Arupa available to others.

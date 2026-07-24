@@ -5,23 +5,23 @@ description: "Learn how Arupa uses one human-readable configuration as its sourc
 
 Arupa treats configuration as the source of truth for the whole system. The
 Kernel reads one human-readable TOML configuration file and uses it to define
-how the server and its plugins behave.
+how the server and its services behave.
 
 The configuration covers the main parts of an Arupa installation, including:
 
 - the Kernel's server settings;
 - users, groups, and access rules;
-- plugin locations and lifecycle settings; and
-- plugin-specific settings and durable data.
+- service locations and lifecycle settings; and
+- service-specific settings and durable data.
 
 This gives Arupa a simple operating model: if a setting or piece of data needs
 to survive a restart, it belongs in configuration. The configuration file is
-also the only persistence mechanism that plugins should use for their own
-settings and durable state. Plugins should not hide persistent data in private
+also the only persistence mechanism that services should use for their own
+settings and durable state. Services should not hide persistent data in private
 files or an internal database.
 
 Arupa keeps configuration human-readable on purpose. You can inspect, back
-up, review, and edit plugin settings directly without needing a special tool.
+up, review, and edit service settings directly without needing a special tool.
 The Kernel can then load the updated configuration and apply the relevant
 changes.
 

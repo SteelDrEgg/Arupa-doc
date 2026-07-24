@@ -3,8 +3,8 @@ title: "Routing"
 description: "Understand Arupa's shared path-pattern and route-selection rules."
 ---
 
-Arupa uses one path-pattern implementation for Kernel access rules and plugin
-resource registration. This is a small path-pattern language. It is not a wildcard, glob, or regular
+Arupa uses one path-pattern implementation for Kernel access rules and service
+route registration. This is a small path-pattern language. It is not a wildcard, glob, or regular
 expression matcher.
 
 ## Valid patterns
@@ -64,12 +64,14 @@ need both `/api` and its children, define separate patterns.
 | Caller | Root behavior |
 | --- | --- |
 | `Route.Allow` | `/` matches only `/` |
-| Plugin HTTP route | `/` matches only `/` |
-| Static directory mount | `/` matches every absolute path |
+| HTTP or single-file static route | `/` matches only `/` |
+| Directory-backed static route | `/` matches every absolute path |
+| Proxy route | `/` matches every absolute path |
 
-The first two callers use `RootPathExact`. Static mounts use
-`RootPathSubtree`, so a static directory mounted at `/` can serve paths below
-the root.
+Most callers use `RootPathExact`. A directory-backed static route and a proxy
+route both use `RootPathSubtree`, so either one mounted at `/` can serve or
+forward paths below the root — useful when a proxy should own the whole
+application, or a static directory should provide its general content.
 
 ## Choosing between matching patterns
 
@@ -87,13 +89,14 @@ For example, given these host access rules:
 `/api/admin/users` matches both patterns, but `/api/admin/` wins because it is
 longer. Only the `root` group rule is evaluated for that request.
 
-This same longest-pattern rule is used when the plugin router selects an HTTP
-route or a static mount.
+This same longest-pattern rule is used when the service router selects an HTTP
+route, whether that route serves packaged files through a static transport or
+is handled dynamically.
 
 ## Host access rules
 
 `Route.Allow` matches the request's URL path before the request reaches a host
-handler or plugin handler. Configuration validation applies the same pattern
+handler or service handler. Configuration validation applies the same pattern
 rules described above. See [Access control](./config-access)
 for how the selected route's group list is evaluated against the authenticated
 user.
@@ -101,9 +104,9 @@ user.
 The query string is not part of path matching. For example, a request for
 `/api/items?limit=10` is matched using `/api/items`.
 
-## Plugin HTTP routes
+## Service HTTP routes
 
-Plugins use the same path patterns when they register HTTP routes. After the
+Services use the same path patterns when they register HTTP routes. After the
 router selects the longest matching path pattern, it selects a handler by HTTP
 method:
 
@@ -117,18 +120,29 @@ If a path matches but no registered method matches, Arupa returns `405 Method
 Not Allowed` and includes the available methods in the `Allow` response header.
 
 Routes with the same path and conflicting methods cannot be registered by
-different plugins. A methodless route conflicts with every method at that same
+different services. A methodless route conflicts with every method at that same
 path.
 
-## Static mounts
+This section covers how a path is matched once a route exists. For how a
+route is declared and bound to a transport — including the static transport
+that serves packaged files without running service code — see [Routes and
+transports](../service/routing).
 
-Static directory mounts use subtree matching. The Kernel normalizes a directory
-mount to a pattern ending in `/`, so a mount configured at `/assets` serves the
-`/assets/` subtree.
+## Static routes
 
-Static file mounts use exact matching and must not end in `/`. A static file
-mount at `/favicon.ico` therefore serves that path only.
+A route bound to a static transport uses the same path-pattern rules as any
+other HTTP route, with one addition: whether it matches as an exact path or a
+subtree depends on whether its source is a single file or a directory.
 
-Static mounts and plugin HTTP routes are both considered by the plugin router.
-The router chooses the longest matching pattern; when a static mount and HTTP
-route have the same matching length, the static mount is selected.
+- A route backed by a directory source uses subtree matching. The Kernel
+  normalizes it to a pattern ending in `/`, so a route configured at
+  `/assets` serves the `/assets/` subtree.
+- A route backed by a single-file source uses exact matching and must not end
+  in `/`. A route at `/favicon.ico` therefore serves that path only.
+
+Static and dynamically handled routes are both considered by the same service
+router and compete for the same path space. The router chooses the longest
+matching pattern; when a static route and a dynamically handled route have
+the same matching length, the static route is selected. See [Routes and
+transports](../service/routing) for the full conflict rules, including how a
+batch of route registrations is applied.

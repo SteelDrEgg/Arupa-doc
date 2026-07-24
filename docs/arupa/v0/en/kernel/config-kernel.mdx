@@ -4,14 +4,14 @@ description: "Configure the address and directories required by the Arupa Kernel
 ---
 
 The Kernel needs a small set of settings before it can start its server and
-plugin system. These settings are defined at the top level of the TOML
+service system. These settings are defined at the top level of the TOML
 configuration file:
 
 ```toml
 Listen = ":8080"
 TLS = false
-PluginDir = "plugins"
-PluginTempDir = "tmp"
+ServiceDir = "services"
+ServiceTempDir = "tmp"
 ```
 
 ## `Listen`
@@ -60,22 +60,22 @@ location / {
 Keep `TLS = false` when TLS terminates at the reverse proxy and the connection
 from that proxy to the Kernel does not need encryption.
 
-## `PluginDir`
+## `ServiceDir`
 
-`PluginDir` is the directory that the Kernel scans for `.plg` plugin packages.
-The plugin manager uses this directory to discover the plugins available to
-Arupa.
+`ServiceDir` is the directory that the Kernel scans for `.plg` service
+packages. The service manager uses this directory to discover the services
+available to Arupa.
 
 The path can be absolute or relative to the process working directory. In the
-example configuration, `plugins` means a `plugins` directory next to the
+example configuration, `services` means a `services` directory next to the
 directory from which Arupa is started.
 
-## `PluginTempDir`
+## `ServiceTempDir`
 
-`PluginTempDir` is the writable temporary directory used while the Kernel
-loads plugins. Arupa extracts plugin packages into this directory before it
+`ServiceTempDir` is the writable temporary directory used while the Kernel
+loads services. Arupa extracts service packages into this directory before it
 starts them.
 
 The directory must be writable by the Arupa process. It is separate from
-`PluginDir`: keep the original `.plg` packages in `PluginDir`, and use
-`PluginTempDir` for the Kernel's extracted runtime files.
+`ServiceDir`: keep the original `.plg` packages in `ServiceDir`, and use
+`ServiceTempDir` for the Kernel's extracted runtime files.

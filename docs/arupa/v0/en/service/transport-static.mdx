@@ -1,0 +1,151 @@
+---
+title: "Static"
+description: "Serve files from a service package through the Kernel."
+---
+
+Static lets a service expose files from its package directly through the
+Kernel's HTTP server, without service code handling each request. Use it for
+pages, stylesheets, scripts, images, and other files that do not need to be
+computed per request.
+
+A service registers a static transport naming the file or directory to serve,
+then registers one or more HTTP routes bound to that transport's id. After
+registration succeeds, the Kernel serves matching requests directly from the
+declared source. The request does not need to cross the service process or
+WASM boundary.
+
+## Register a static transport
+
+A static transport has:
+
+| Property | Meaning |
+| --- | --- |
+| `id` | Identifier used by routes to bind to this transport. |
+| `source` | File or directory to serve. Use `$PLUGIN_ROOT` to refer to the extracted `Content` directory in the service package. |
+
+```text
+id:     assets
+source: $PLUGIN_ROOT/assets
+```
+
+The file or directory must exist when the Kernel loads the service. Package
+the resource under `Content/` and refer to it through `$PLUGIN_ROOT`:
+
+```text
+my-service.plg
+├── info.yaml
+└── Content/
+    └── assets/
+        ├── app.js
+        └── app.css
+```
+
+## Bind a route to it
+
+A route bound to a static transport carries the URL pattern and access
+policy:
+
+| Property | Meaning |
+| --- | --- |
+| `transport` | The static transport's `id`. |
+| `pattern` | URL path at which the resource is available. |
+| `access` | Optional access policy for the route. |
+
+```text
+transport: assets
+pattern:   /my-service/assets/
+access:    public
+```
+
+A static route only accepts `GET`, or no method at all — declaring any other
+specific method for a static route is rejected. See [Routes and
+transports](./routing) for how a route and a transport relate in general.
+
+## Mount a directory
+
+When the transport's `source` is a directory, its route's `pattern` must end
+in `/`:
+
+```text
+source:  $PLUGIN_ROOT/assets
+pattern: /my-service/assets/
+```
+
+The pattern maps to the directory subtree. For example:
+
+```text
+/my-service/assets/app.js  →  Content/assets/app.js
+/my-service/assets/app.css →  Content/assets/app.css
+```
+
+The path `/my-service/assets` without the trailing slash is a different,
+exact path; add a separate HTTP route through another transport if you need a
+redirect or an index response there.
+
+## Mount a single file
+
+When the transport's `source` is a single file, its route's `pattern` must
+not end in `/`:
+
+```text
+source:  $PLUGIN_ROOT/pages/index.html
+pattern: /my-service/index.html
+```
+
+Only the exact path is served. A request for
+`/my-service/index.html/anything` does not match this route.
+
+The Kernel rejects the registration if the pattern's trailing slash does not
+match whether the source is a file or a directory, so this mismatch is caught
+at registration time rather than surfacing as a runtime 404.
+
+## URL path rules
+
+Static route patterns follow the Kernel's shared path-pattern rules:
+
+- the pattern must be an absolute path beginning with `/`;
+- a pattern without a trailing `/` matches one exact path (single-file
+  source);
+- a pattern ending in `/` matches that path subtree (directory source); and
+- `/*` is not a wildcard form and is rejected.
+
+The root pattern `/` is treated as a subtree for a directory-backed static
+route, and can match all absolute request paths. Avoid claiming the root
+unless the service is intended to provide the application's general static
+content.
+
+## Access control
+
+The route's `access` policy applies before the Kernel serves the file. A
+request must also satisfy the service-wide access policy configured for the
+service. If either policy rejects the request, the file is not served. See
+[Access control](../kernel/config-access) for the policy model.
+
+## Conflicts and matching
+
+Static routes share the application's URL space with a service's other HTTP
+routes, whatever transport backs them. Keep each service's patterns unique.
+The Kernel rejects a route when another service already owns the same path,
+and a static route always conflicts with a non-static route at the same
+path — a path is either served as static content or handled dynamically, not
+both. See [Routes and transports](./routing) for the complete conflict
+rules.
+
+When multiple routes can match a request, the longest matching pattern wins.
+A static route also wins when it has the same match length as a
+dynamically-handled route. Choose specific patterns to avoid surprising
+ownership of a URL.
+
+## Packaging checklist
+
+Before loading the service, verify that:
+
+- every static transport's `source` is inside the package's `Content/` tree;
+- the `source` value uses `$PLUGIN_ROOT` rather than a build-machine path;
+- directory-backed routes end their pattern in `/`;
+- file-backed routes do not end their pattern in `/`; and
+- the package contains all files referenced by the transports.
+
+Static is intended for files that can be served as-is. If a request needs
+service logic, request data, or a generated response, use the [HTTP
+transport](./transport-http) instead.

@@ -23,45 +23,48 @@
             "docs/arupa/v0/en/kernel/config-users",
             "docs/arupa/v0/en/kernel/config-access",
             "docs/arupa/v0/en/kernel/config-pages",
-            "docs/arupa/v0/en/kernel/config-plugins",
+            "docs/arupa/v0/en/kernel/config-services",
             "docs/arupa/v0/en/kernel/config-logging"
           ]
         },
-        "docs/arupa/v0/en/kernel/plugins",
+        "docs/arupa/v0/en/kernel/services",
         "docs/arupa/v0/en/kernel/route"
       ]
     },
     {
-      "group": "Plugin",
+      "group": "Service",
       "pages": [
-        "docs/arupa/v0/en/plugin/introduction",
-        "docs/arupa/v0/en/plugin/plg",
-        "docs/arupa/v0/en/plugin/proto",
+        "docs/arupa/v0/en/service/introduction",
+        "docs/arupa/v0/en/service/package",
+        "docs/arupa/v0/en/service/protocol",
+        "docs/arupa/v0/en/service/routing",
+        "docs/arupa/v0/en/service/static-service",
         {
           "group": "Transports",
-          "root": "docs/arupa/v0/en/plugin/transport",
+          "root": "docs/arupa/v0/en/service/transport",
           "pages": [
-            "docs/arupa/v0/en/plugin/transport-static",
-            "docs/arupa/v0/en/plugin/transport-http",
-            "docs/arupa/v0/en/plugin/transport-socket.io"
+            "docs/arupa/v0/en/service/transport-static",
+            "docs/arupa/v0/en/service/transport-http",
+            "docs/arupa/v0/en/service/transport-socket.io",
+            "docs/arupa/v0/en/service/transport-proxy"
           ]
         },
         {
-          "group": "Inter-Plugin Communication",
-          "root": "docs/arupa/v0/en/plugin/ipc",
+          "group": "Inter-Service Communication",
+          "root": "docs/arupa/v0/en/service/isc",
           "pages": [
-            "docs/arupa/v0/en/plugin/ipc-kv",
-            "docs/arupa/v0/en/plugin/ipc-message"
+            "docs/arupa/v0/en/service/isc-kv",
+            "docs/arupa/v0/en/service/isc-message"
           ]
         },
-        "docs/arupa/v0/en/plugin/logging",
+        "docs/arupa/v0/en/service/logging",
         {
           "group": "Conventions",
-          "root": "docs/arupa/v0/en/plugin/convention",
+          "root": "docs/arupa/v0/en/service/convention",
           "pages": [
-            "docs/arupa/v0/en/plugin/convention-kv",
-            "docs/arupa/v0/en/plugin/convention-navigation",
-            "docs/arupa/v0/en/plugin/convention-styling"
+            "docs/arupa/v0/en/service/convention-kv",
+            "docs/arupa/v0/en/service/convention-navigation",
+            "docs/arupa/v0/en/service/convention-styling"
           ]
         }
       ]

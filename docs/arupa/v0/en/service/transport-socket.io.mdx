@@ -1,0 +1,158 @@
+---
+title: "Socket.IO"
+description: "Handle Socket.IO namespaces and events in a service."
+---
+
+Socket.IO lets a service receive and emit real-time events through the
+Kernel's Socket.IO server. Use it for interactive features that need a
+persistent client connection, event notifications, or server-side updates.
+
+A service registers a socket.io transport, then binds a route to it that
+declares the namespace and the events it handles. The Kernel owns the
+Socket.IO connection, applies access policies, and forwards declared events
+to the service.
+
+## Register a socket.io transport and bind a route
+
+A socket.io transport needs no type-specific configuration beyond its `id`.
+The route bound to it carries the namespace declaration:
+
+| Property | Meaning |
+| --- | --- |
+| `transport` | The socket.io transport's `id`. |
+| `namespace` | Socket.IO namespace, such as `/my-service`. |
+| `events` | Event names that the service accepts in that namespace. |
+| `access` | Optional access policy for the namespace. |
+| `event_access` | Optional access policy for individual events. |
+
+The exact declaration syntax depends on the language and generated SDK. The
+following language-neutral form shows the declaration:
+
+```text
+transport: events
+namespace: /my-service
+events:    [update, refresh]
+access:    <optional policy>
+```
+
+Namespace names must be unique among running services. Use a namespace owned
+by your service, usually under a service-specific path, to avoid collisions.
+See [Routes and transports](./routing) for how a route and a transport relate
+in general.
+
+## Connect to a namespace
+
+A client connects to the namespace declared by the route. The Kernel checks
+the service-wide and namespace access policies during the connection
+handshake. If either policy rejects the user, the connection is refused.
+
+The namespace is unavailable while no running service owns it. Stopping the
+owning service disconnects existing sockets from that namespace. Future
+connections are rejected until the service is started again.
+
+## Receive an event
+
+Only event names listed in `events` are forwarded to the service. Events that
+are not declared are ignored by the Kernel.
+
+The event sent to the service is the `SocketEvent` message described in
+[Protocol](./protocol). Its fields are:
+
+| Field | Definition |
+| --- | --- |
+| `route_id` | The registered route that owns the namespace. |
+| `namespace` | Namespace that received the event. |
+| `event` | Event name. |
+| `socket_id` | ID of the socket that sent the event. |
+| `payload` | JSON-encoded array of the event arguments. |
+| `user` | Authenticated user, when available. |
+
+The Kernel does not impose an application schema on `payload`. Define the
+payload shape between your client and service, then decode and validate it in
+the service. Since the payload is an array, an event with one object argument
+is represented conceptually as:
+
+```json
+[{"id": 42, "enabled": true}]
+```
+
+An unauthenticated event has no `user` value.
+
+## Send an event
+
+The service sends events using emit instructions. An emit instruction
+contains:
+
+| Field | Definition |
+| --- | --- |
+| `namespace` | Namespace in which to emit the event. |
+| `target` | Socket ID for a directed emit. Leave empty to broadcast to the namespace. |
+| `event` | Event name delivered to clients. |
+| `payload` | JSON-encoded array of event arguments. |
+
+The event handler can return one or more emit instructions in its response.
+This is the portable request/reply form. For WASM services, it is the normal
+way to emit in response to an incoming event because the handler cannot push
+an event spontaneously. A gRPC service can also use the Host's emit
+capability when it needs to send an event outside the current handler call.
+
+For a directed event, set `target` to the receiving socket's ID. For a
+namespace broadcast, leave `target` empty:
+
+```text
+namespace: /my-service
+target:    <socket id>   # directed event
+event:     update
+payload:   [{"status": "ready"}]
+```
+
+The same payload rule applies to emitted events: `payload` must contain a
+JSON array of arguments. An empty payload emits an event with no arguments.
+
+## Access control
+
+The Kernel evaluates access at both connection and event time:
+
+1. The service-wide policy must allow the user.
+2. The namespace policy must allow the user.
+3. If the event has an entry in `event_access`, that event policy must also
+   allow the user.
+
+All applicable policies must allow the operation. A namespace policy does not
+override a stricter service-wide policy, and an event policy does not make a
+restricted namespace public.
+
+When an event is denied after a socket has connected, the Kernel emits an
+`error` event to that socket. The error identifies whether authentication is
+required or the user is forbidden. The event is not forwarded to the service.
+See [Access control](../kernel/config-access) for the policy model.
+
+## Namespace conflicts and lifecycle
+
+A namespace can have only one owning route at a time. If another running
+service already owns the namespace, the Kernel does not connect the new
+route.
+
+The namespace conflict affects only that registration: the service still
+runs, but the Kernel marks it `degraded`. Other non-conflicting routes can
+remain available. Resolve the conflict and re-register the route to claim the
+namespace.
+
+Stopping a service releases its namespace ownership and disconnects all
+sockets connected to that namespace. Starting the service again — or
+re-registering the route — replaces the owner and lets clients connect again.
+
+## Event handling checklist
+
+Before loading the service, verify that:
+
+- the namespace begins with `/` and is unique to the service;
+- every event the service expects is listed in `events`;
+- client and service agree that each payload is a JSON array of arguments;
+- payloads are validated before the service uses them;
+- namespace and event access policies protect the intended users; and
+- emitted events use the correct namespace and target.
+
+Use Socket.IO for connection-oriented, event-driven behavior. Use
+[HTTP transport](./transport-http) for request/response interactions and
+[static transport](./transport-static) for files that can be served as-is.

@@ -1,0 +1,156 @@
+---
+title: "Proxy"
+description: "Stream HTTP, WebSocket, or Socket.IO traffic to an upstream a service already runs."
+---
+
+Proxy lets a service put its own HTTP server behind the Kernel instead of
+handling every request through the service protocol. The Kernel forwards
+matching HTTP requests, WebSocket upgrades, and an upstream-owned Socket.IO
+connection straight through to an address the service owns. Use it when a
+service already runs a capable server of its own — a bundled web framework, a
+prebuilt frontend dev server, or a long-lived process with its own
+protocol needs — and re-implementing that behavior through the request/reply
+[HTTP transport](./transport-http) would be wasteful or impossible.
+
+## Register a proxy transport
+
+A proxy transport names the upstream target:
+
+| Property | Meaning |
+| --- | --- |
+| `id` | Identifier used by routes to bind to this transport. |
+| `network` | How the Kernel reaches the upstream: `inherited`, `unix`, or `tcp`. |
+| `address` | Target address. Meaning depends on `network`. |
+| `scheme` | `http` or `https`, for how the Kernel connects to the upstream. |
+
+```text
+id:      web
+network: unix
+address: /run/my-service/app.sock
+scheme:  http
+```
+
+### Network kinds
+
+- **`tcp`** — the upstream is listening on a host and port, `address` is
+  that `host:port`. Use this for an upstream that already binds a TCP port
+  on its own.
+- **`unix`** — the upstream is listening on a Unix domain socket, `address`
+  is the socket's filesystem path. This avoids exposing a TCP port for
+  traffic that only needs to reach the Kernel.
+- **`inherited`** — only available to a `grpc` service. Before the Kernel
+  starts the service's process, it prepares a listening socket and hands it
+  to the service already open, so the service's own server can start
+  accepting connections immediately without racing the Kernel to bind a
+  port or coordinate a port number. One inherited listener can back any
+  number of proxy routes for that service.
+
+`unix` and `tcp` targets point at an address that is already listening
+somewhere, so they can also be declared by a `static` service's
+`manifest.yaml` — see [Static services](./static-service). An `inherited`
+target only makes sense for a `grpc` service the Kernel is actively
+starting.
+
+### Why `inherited` is the safer default for a `grpc` service
+
+For a `grpc` service, prefer `inherited` over asking the service to bind its
+own `unix` or `tcp` listener and pointing a transport at it afterward.
+Because the Kernel creates the listener itself, before the service process
+exists, and only then hands it to that process already open, several risks
+that come with a service binding its own listener don't apply:
+
+- **Nothing can bind ahead of the service.** With a `unix` or `tcp` target,
+  the service has to bind the address itself after it starts, which leaves a
+  window where another local process could bind that same path or port
+  first and intercept traffic meant for the service. With `inherited`, the
+  Kernel holds the listener before the service process is even started, so
+  there is no window for another process to claim it.
+- **Restrictive permissions from the start.** The listener the Kernel
+  prepares lives in a directory created with `0700` permissions, and the
+  listener itself is `0600`. Only the Kernel's own process user can reach it
+  before handing it off, so it is never briefly world- or group-accessible
+  the way a self-created socket can be if a service's own setup code creates
+  it with looser default permissions.
+- **The service never needs bind privileges.** The service receives an
+  already-open listener instead of creating one, so it doesn't need
+  permission to bind a port or create a socket file. This matters most when
+  [`RunAsUser`](../kernel/config-services#runasuser) runs the service as a
+  restricted operating-system user — that user doesn't need any special
+  networking privilege, and a compromised service can't abuse this
+  mechanism to open some other, unintended listener.
+- **Guaranteed to reach the right process.** Because the Kernel created the
+  listener and handed it directly to the specific child process it just
+  started, traffic arriving there is guaranteed to reach that exact service
+  instance. There's no address to look up and no possibility of connecting
+  to an impostor process that happened to bind the same path first.
+- **Cleaned up automatically.** The Kernel closes its own reference once the
+  service has started, and removes the listener when the service is
+  unloaded, so a stopped service doesn't leave a live or stale endpoint
+  behind for another process to find or reuse.
+
+With `unix` and `tcp`, that same trust has to come from how you deploy the
+upstream: keep a `unix` socket path in a directory only the intended user can
+write to, and keep a `tcp` target bound to `localhost` or a private network
+rather than a publicly reachable interface. Those are still reasonable
+choices — for a `static` service's fixed upstream, they're the only choice —
+but for a `grpc` service the Kernel is starting itself, `inherited` removes
+the need to get that deployment detail right.
+
+## Bind a route to it
+
+A route bound to a proxy transport carries the same kind of HTTP declaration
+as any other HTTP route — `pattern` and `access` — described in [Routes and
+transports](./routing). A proxy route commonly covers a whole subtree with a
+trailing-slash pattern, so that every path under it reaches the upstream. The
+root pattern `/` is always treated as a subtree for a proxy route, matching
+every absolute path, so a service can proxy its entire application through
+one route if it owns the root.
+
+```text
+transport: web
+pattern:   /my-service/
+access:    <optional policy>
+```
+
+## What the Kernel preserves and injects
+
+The proxy forwards end-to-end request headers, including `Cookie` and
+`Authorization`, and preserves the original request path, query string, and
+`Host` header. Hop-by-hop headers are managed the normal way a reverse proxy
+handles them.
+
+Before forwarding, the Kernel always removes any identity headers the caller
+supplied and injects its own, verified ones:
+
+- `X-Arupa-Authenticated`
+- `X-Arupa-User`
+- one `X-Arupa-Group` header per group the user belongs to
+
+This means the upstream can trust these headers as the Kernel's own
+verification result — a caller cannot forge them by sending its own copies.
+
+## Access control
+
+Access is evaluated the same way as any HTTP route: the service-wide policy
+first, then the route's own `access` policy. See [Access
+control](../kernel/config-access) for the policy model. The Kernel checks
+access before proxying the request, so a denied request never reaches the
+upstream.
+
+## Conflicts
+
+A proxy route follows the normal HTTP route conflict rules described in
+[Routes and transports](./routing): the same path cannot be owned by two
+services, and an any-method route conflicts with every method-specific route
+at the same path. A proxy route is not `static`, so it does not trigger the
+static-versus-non-static conflict rule — it can share a path space with an
+HTTP-transport route the same way two dynamically-handled routes would,
+subject to the normal method rules.
+
+## When to use it
+
+Prefer [HTTP transport](./transport-http) when responses fit comfortably in
+one request/response message and your service is fine handling them through
+the generated SDK. Reach for proxy when the service already has its own
+server, needs a persistent WebSocket or streaming connection, or would pay a
+real cost translating every request through the service protocol.

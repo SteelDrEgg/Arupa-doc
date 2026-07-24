@@ -1,29 +1,31 @@
 ---
 title: "Introduction"
-description: "Understand the Arupa Kernel and how it hosts plugins."
+description: "Understand the Arupa Kernel and how it hosts services."
 ---
 
 The Arupa Kernel is the host process at the center of Arupa. It provides the
-shared server runtime that plugins build on, so each plugin can focus on its
+shared server runtime that services build on, so each service can focus on its
 own features instead of implementing its own server, authentication, or
-plugin-to-plugin communication.
+inter-service communication.
 
 The Kernel is responsible for:
 
 - serving HTTP requests and Socket.IO connections;
-- discovering, loading, starting, and stopping plugins, as well as reloading
+- discovering, loading, starting, and stopping services, as well as reloading
   configuration;
-- connecting plugin-declared HTTP routes, static files, and Socket.IO
-  namespaces to the server;
+- connecting service-declared transports and routes — HTTP routes, static
+  files, Socket.IO namespaces, and proxied upstreams — to the server;
 - providing shared host APIs such as key-value storage, logging, event
-  emission, and plugin messages; and
-- authenticating requests and enforcing configured host, plugin, route, and
-  event access policies.
+  emission, and service messages; and
+- authenticating requests and enforcing configured host, service, and route
+  access policies.
 
-Plugins run as separate WASM or gRPC components. During registration, a plugin
-declares the routes, static mounts, and Socket.IO namespaces it provides. The
-Kernel then dispatches matching requests and events to the owning plugin while
-keeping the host-level identity and access checks in one place.
+A service runs as a `wasm` module, a separate `grpc` process, or, for pure
+packaged content, as a `static` service with no code at all. `wasm` and
+`grpc` services perform an identity handshake with the Kernel when they
+start, then declare the transports and routes they provide. The Kernel
+dispatches matching requests and events to the owning service while keeping
+the host-level identity and access checks in one place.
 
 To run Arupa, first install the Kernel and choose the installation method that
 fits your environment.

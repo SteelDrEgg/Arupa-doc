@@ -1,15 +1,15 @@
 ---
 title: "Styling"
-description: "Understand the shared styling and theme conventions for plugin pages."
+description: "Understand the shared styling and theme conventions for service pages."
 ---
 
-Plugin pages use Tailwind CSS and DaisyUI as the common styling vocabulary.
+Service pages use Tailwind CSS and DaisyUI as the common styling vocabulary.
 Tailwind CSS provides utility classes, while DaisyUI provides component styles
 and semantic component variants.
 
-Tailwind CSS is the recommended styling layer for plugin pages. DaisyUI is
-available when a plugin needs its component classes. Neither library is a
-requirement for a plugin that has its own frontend build pipeline. The
+Tailwind CSS is the recommended styling layer for service pages. DaisyUI is
+available when a service needs its component classes. Neither library is a
+requirement for a service that has its own frontend build pipeline. The
 requirement is that the page follows the shared theme scheme described below.
 
 ## Shared style resources
@@ -22,8 +22,8 @@ The application currently publishes these frontend resources:
 | `/assets/css/daisyui@5.css` | DaisyUI v5 component styles and semantic utilities. |
 | `/assets/css/scheme.css` | Shared light and dark theme variables. |
 
-The Tailwind and DaisyUI resources provide a quick way to start a plugin
-frontend. A plugin may instead compile its own CSS and JavaScript. Such a
+The Tailwind and DaisyUI resources provide a quick way to start a service
+frontend. A service may instead compile its own CSS and JavaScript. Such a
 frontend only needs to remain compatible with `/assets/css/scheme.css` and the
 theme states it defines.
 
@@ -31,7 +31,7 @@ theme states it defines.
 
 The shared theme scheme is available at `/assets/css/scheme.css`. It defines variables for
 `body.light` and `body.dark`. The variables are the visual contract between
-the application and plugin pages.
+the application and service pages.
 
 ```css
 body.dark {
@@ -66,17 +66,17 @@ body.dark {
 }
 ```
 
-Plugins should use the semantic variables rather than fixed colors.
+Services should use the semantic variables rather than fixed colors.
 
 ## Theme switching
 
 The selected theme is shared through browser storage under the key
 `arupa.theme`. The value is `light` or `dark`; the effective default is
-`light`. Storage carries the application-wide choice, while each plugin page
+`light`. Storage carries the application-wide choice, while each service page
 reflects that choice through its own `body.light` or `body.dark` state.
 
-Changing the stored value is the application-wide theme switch. Plugin pages
+Changing the stored value is the application-wide theme switch. Service pages
 must follow the change so that all visible pages use the same theme. The
-`web-sdk` plugin provides a convenience API for reading, writing, and
+`web-sdk` service provides a convenience API for reading, writing, and
 observing this storage value, but the storage convention is independent of the
 SDK.

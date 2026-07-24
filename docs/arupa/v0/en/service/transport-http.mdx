@@ -1,0 +1,169 @@
+---
+title: "HTTP"
+description: "Handle dynamic HTTP requests in a service."
+---
+
+HTTP lets a service handle dynamic HTTP requests. Use it when the response
+depends on request data, service state, or application logic. The Kernel
+matches the incoming request, checks access, converts the request into the
+service protocol, and sends the service's response back to the client.
+
+Use [static transport](./transport-static) when the Kernel can serve a file
+as-is instead.
+
+## Register an HTTP transport and bind a route
+
+Register an HTTP transport — it needs no type-specific configuration beyond
+its `id` — then register one or more routes bound to it. A route contains:
+
+| Property | Meaning |
+| --- | --- |
+| `transport` | The HTTP transport's `id`. |
+| `method` | HTTP method to accept. Leave it empty to accept any method for the pattern. |
+| `pattern` | URL path that selects the route. |
+| `access` | Optional access policy for the route. |
+
+The exact declaration syntax depends on the language and generated SDK. The
+following language-neutral form shows the information involved:
+
+```text
+transport: api
+method:    POST
+pattern:   /my-service/items
+access:    <optional policy>
+```
+
+One HTTP transport can back more than one route; how you split routes across
+transports is up to you. See [Routes and transports](./routing) for the
+general relationship.
+
+The route pattern must start with `/`. The query string is not part of the
+pattern. For example, a request to `/my-service/items?limit=10` matches the
+pattern `/my-service/items`; the service receives `limit=10` as request data.
+
+## Path matching
+
+HTTP routes use the Kernel's shared path-pattern language. Read [Kernel
+routing](../kernel/route) for the complete pattern and matching rules.
+
+For HTTP transport, the important cases are:
+
+- A pattern without a trailing `/` matches one exact path.
+- A pattern ending in `/` matches that path and its subtree.
+
+For example:
+
+```text
+/my-service/items       → only /my-service/items
+/my-service/items/      → /my-service/items/ and paths below it
+                           such as /my-service/items/42
+```
+
+The root pattern `/` matches only `/` for HTTP routes. The wildcard
+form `/*` is not supported. Use a trailing `/` for a subtree instead.
+
+When multiple patterns match a path, the longest matching pattern wins. The
+Kernel chooses the path before it chooses the method. If the selected pattern
+has no route for the request method, the client receives `405 Method
+Not Allowed`.
+
+An exact method route takes precedence over an any-method route with the same
+pattern. Method names are matched case-insensitively.
+
+## Request data
+
+The request sent to the service is the `HTTPRequest` message described in
+[Protocol](./protocol). Its fields are:
+
+| Field | Definition |
+| --- | --- |
+| `route_id` / `route_pattern` | The registered route and pattern that matched the request. |
+| `method` | The HTTP method, such as `GET` or `POST`. |
+| `path` | The URL path, without the query string. |
+| `query` | The raw query string, without the leading `?`. |
+| `headers` | Request headers. |
+| `body` | The complete request body. |
+| `remote_addr` | The remote address reported by the HTTP server. |
+| `user` | The authenticated user, when available. |
+
+For an unauthenticated request, `user` is absent.
+
+The Kernel buffers the request body before sending it to the service. The
+body limit is 8 MiB. A request larger than this limit is rejected before the
+service handler runs.
+
+The protocol represents one request and one response as messages. It does
+not provide a streaming request or response body, so use a different design
+— such as [proxy transport](./transport-proxy) — for payloads that cannot fit
+within the limit or that need to stream.
+
+## Return a response
+
+Return the `HTTPResponse` message described in [Protocol](./protocol):
+
+| Field | Definition |
+| --- | --- |
+| `status` | HTTP status code. |
+| `headers` | Response headers. |
+| `body` | Response body bytes. |
+
+If the status is omitted or zero, the Kernel uses `200 OK`. Set the
+`Content-Type` header when the client needs to know how to interpret the
+body. The Kernel copies the response headers and body to the HTTP response.
+
+If the service handler fails before returning a response, the Kernel returns
+a `502 Bad Gateway` response to the client. Handle expected application
+errors inside the service and return the appropriate status and response
+body.
+
+## Access control
+
+The Kernel evaluates access before it forwards a request to the service. A
+request must satisfy both the service-wide policy configured for the service
+and the policy declared on the route. If either policy denies the request,
+the handler does not run.
+
+An empty route policy does not override a service-wide restriction. Use the
+service-wide policy for a rule that applies to every route, and the route
+policy for a more specific rule. See [Access control](../kernel/config-access)
+for the policy model.
+
+## Route conflicts
+
+HTTP routes share the application's URL space with other services' routes.
+The same path and method cannot be claimed by two different services. Two
+services may use the same path when they handle different methods, provided
+neither route accepts every method. An any-method route conflicts with every
+method-specific route for the same path.
+
+A route also conflicts with a static route owned by another service when
+both declare the same path pattern — static and non-static routes always
+conflict at the same path, regardless of method. Keep route patterns within a
+clear service namespace to avoid collisions.
+
+The Kernel checks these conflicts when the service registers the route. A
+conflicting route is not connected, but the rest of the registration batch
+still applies, and the service process or WASM instance still runs. The
+service is marked `degraded`, and its other non-conflicting routes remain
+available. Resolve the conflict and re-register the route to recover.
+
+This is different from a failure to load the package, start the runtime, or
+complete the identity handshake. Those failures prevent the service from
+starting and leave it in a failed state. See [Routes and
+transports](./routing) for the complete conflict and batch-registration
+rules.
+
+## HTTP handler checklist
+
+Before loading the service, verify that:
+
+- every route pattern starts with `/`;
+- you use a trailing `/` for a subtree and never use `/*`;
+- query parameters are read from the request data rather than included in the
+  route pattern;
+- the route access policy matches the data the handler protects;
+- request bodies stay within the 8 MiB limit; and
+- responses set a status, content type, and body appropriate for the client.
+
+HTTP is the right choice for dynamic behavior. For packaged files
+that do not require a handler, use [static transport](./transport-static).

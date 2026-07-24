@@ -1,16 +1,16 @@
 ---
 title: "KV storage"
-description: "Use the Kernel's shared in-memory key-value store from a plugin."
+description: "Use the Kernel's shared in-memory key-value store from a service."
 ---
 
-The Kernel provides a shared key-value store to all running plugins. A plugin
-can use it for small pieces of state that must be read or updated through the
-Kernel, such as cached values, plugin state, or data shared with another
-plugin.
+The Kernel provides a shared key-value store to all running services. A
+service can use it for small pieces of state that must be read or updated
+through the Kernel, such as cached values, service state, or data shared
+with another service.
 
 KV values are raw bytes. The Kernel does not assign a data format to them, so
 you can encode a value as JSON, text, a binary structure, or any other format
-your plugin understands.
+your service understands.
 
 ## Storage model
 
@@ -28,20 +28,20 @@ key:       theme
 value:     dark
 ```
 
-The KV store belongs to the Kernel, not to an individual plugin instance. All
-plugins connected to the same Kernel use the same store. A plugin namespace is
-an organizational convention; it is not a permission boundary. In the current
-implementation, a plugin can read and write another plugin's namespace unless
-that namespace is read-only.
+The KV store belongs to the Kernel, not to an individual service instance.
+All services connected to the same Kernel use the same store. A service
+namespace is an organizational convention; it is not a permission boundary.
+In the current implementation, a service can read and write another
+service's namespace unless that namespace is read-only.
 
-Use a namespace owned by your plugin by convention, usually derived from the
-plugin name. If multiple plugins intentionally share a namespace, document the
-key names and value format they agree to use.
+Use a namespace owned by your service by convention, usually derived from the
+service name. If multiple services intentionally share a namespace, document
+the key names and value format they agree to use.
 
 ## Operations
 
-The operations are defined by the Protobuf host contract. See
-[Protobuf](../proto) for the shared transport definition.
+The operations are defined by the Host contract described in
+[Protocol](./protocol).
 
 ### Read a value
 
@@ -91,11 +91,11 @@ The returned names are sorted by the Kernel. Listing does not return values.
 
 ## Lifecycle and persistence
 
-The Kernel creates the KV store when it creates the plugin manager. The store is
-in memory:
+The Kernel creates the KV store when it creates the service manager. The
+store is in memory:
 
-- stopping or restarting a plugin does not clear its KV values;
-- loading a new version of the same plugin does not clear its KV values; and
+- stopping or restarting a service does not clear its KV values;
+- loading a new version of the same service does not clear its KV values; and
 - restarting the Kernel creates a new empty store and clears all values.
 
 KV is therefore not a durable database. Persist data elsewhere when it must
@@ -104,12 +104,12 @@ survive a Kernel restart, and treat KV as runtime state or a shared cache.
 ## Concurrency and value ownership
 
 The Kernel synchronizes individual KV operations. Reads, writes, deletes, and
-lists are safe when multiple plugin calls happen concurrently.
+lists are safe when multiple service calls happen concurrently.
 
 There is no transaction or compare-and-swap operation. A sequence such as
-“read, modify, write” is not atomic with respect to another plugin. If several
-plugins update the same key, coordinate ownership or design the value so that
-lost updates do not corrupt the application state.
+"read, modify, write" is not atomic with respect to another service. If
+several services update the same key, coordinate ownership or design the
+value so that lost updates do not corrupt the application state.
 
 The Kernel copies byte values when storing and reading them. Mutating a byte
 buffer after a write does not change the stored value, and mutating a returned
@@ -117,30 +117,36 @@ buffer does not change the value in the store.
 
 ## The `sys` namespace
 
-`sys` is a Kernel-managed, read-only namespace. Plugins can read and list it,
-but writes and deletes through the plugin host boundary return an error.
+`sys` is a Kernel-managed, read-only namespace. Services can read and list
+it, but writes and deletes through the service host boundary return an
+error.
 
-The Kernel uses this namespace for host-managed state, including plugin
-registry information. Do not write to `sys`, and do not depend on undocumented
-system keys unless the Kernel documentation explicitly defines them.
+The Kernel uses this namespace for host-managed state, including service
+registry information — for example, `sys/service/catalog/<name>` for scanned
+package metadata and `sys/service/<instance-id>` for a running instance's
+registered routes and transports. Do not write to `sys`, and do not depend on
+undocumented system keys unless the Kernel documentation explicitly defines
+them.
 
 ## Backend behavior
 
-WASM and gRPC plugins use the same KV contract:
+WASM and gRPC services use the same KV contract:
 
-- a WASM plugin reaches the store through the generated host bindings; and
-- a gRPC plugin reaches the store through the Kernel's host callback channel.
+- a WASM service reaches the store through the generated host bindings; and
+- a gRPC service reaches the store through the Kernel's host callback
+  channel.
 
-The storage semantics are the same for both backends. The backend changes how
-the request crosses the plugin boundary, not how the Kernel stores or returns
-the value.
+The storage semantics are the same for both runtime types. The runtime
+changes how the request crosses the service boundary, not how the Kernel
+stores or returns the value. A `static` service has no code and never calls
+these operations itself.
 
 ## Recommended usage
 
 Use a predictable namespace and key scheme:
 
 ```text
-namespace: my-plugin
+namespace: my-service
 keys:
   config/theme
   cache/user/<id>

@@ -1,0 +1,206 @@
+---
+title: "Service package"
+description: "Build and structure the .plg package loaded by the Arupa Kernel."
+---
+
+The `.plg` file is the distribution format for an Arupa service, whatever its
+runtime type. It is a ZIP archive containing the service manifest and the
+files required by the service at runtime. The Kernel scans files with the
+`.plg` extension, reads the manifest, and extracts the package into its
+configured temporary directory when the service is started.
+
+## Package layout
+
+A valid package has `info.yaml` at its archive root and a `Content` directory:
+
+```text
+my-service.plg
+├── info.yaml
+└── Content/
+    ├── my-service.wasm
+    ├── pages/
+    │   └── index.html
+    └── assets/
+        └── app.js
+```
+
+`Content` is the service's runtime root. The Kernel exposes its extracted path
+through the `$PLUGIN_ROOT` placeholder in `info.yaml` and in resource
+declarations. A service should keep its executable, WASM module, and all
+static resources under this directory.
+
+The package must contain both `info.yaml` and `Content/`. A package that cannot
+be read as a ZIP archive, does not have a root-level manifest, or does not have
+the content directory cannot be loaded.
+
+## `info.yaml`
+
+The manifest identifies the service and tells the Kernel how to start it:
+
+```yaml
+Name: my-service
+Version: 1.0.0
+Type: wasm
+ContractVersion: 2
+Command: $PLUGIN_ROOT/my-service.wasm
+DisplayName: My Service
+
+# Optional Metadata
+Category: application
+Entry: /my-service/pages/index.html
+```
+
+The required fields are:
+
+| Field | Description |
+| --- | --- |
+| `Name` | Unique service name. For `wasm` and `grpc` services, the value must also be returned by the service's registration response. |
+| `Version` | Service version. For `wasm` and `grpc` services, it must match the version returned during registration. |
+| `Type` | Runtime type: `wasm`, `grpc`, or `static`. |
+| `ContractVersion` | Version of the service protocol used by the service. |
+| `Command` | Executable or WASM module to load. Required for `wasm` and `grpc`; not used by `static`. `$PLUGIN_ROOT` is replaced with the extracted `Content` path. |
+
+Other fields are retained as service metadata. They can be used by the
+Kernel's service management features or by the application UI, but they do
+not replace the required runtime fields above.
+
+### Runtime type and command
+
+For a WASM service, set `Type` to `wasm` and point `Command` to the module in
+`Content`:
+
+```yaml
+Type: wasm
+Command: $PLUGIN_ROOT/my-service.wasm
+```
+
+For a gRPC service, set `Type` to `grpc` and point `Command` to the executable
+in `Content`:
+
+```yaml
+Type: grpc
+Command: $PLUGIN_ROOT/my-service
+```
+
+The Kernel starts a gRPC executable with its working directory set to
+`$PLUGIN_ROOT` and provides the `PLUGIN_ROOT` environment variable. This lets
+the executable locate resources without depending on the temporary extraction
+path chosen by the Kernel.
+
+For a static service, set `Type` to `static` and omit `Command` — there is no
+executable or module to start. A static service instead declares its
+transports and routes directly in a package-level `manifest.yaml`. See
+[Static services](./static-service) for the manifest format and when this
+runtime type is the right choice.
+
+## Build and package
+
+Build the service and assemble the package in the following order. These
+steps describe a `wasm` or `grpc` service; for a `static` service, skip the
+compile step and add `manifest.yaml` instead of a runtime artifact — see
+[Static services](./static-service).
+
+### 1. Compile the service
+
+Compile the service for its selected runtime. The result is one runtime
+artifact: a WASM module for a `wasm` service or an executable for a `grpc`
+service. Keep the artifact available so you can copy it into the package's
+`Content/` directory.
+
+### 2. Create the package directory
+
+Create a temporary directory for the package. `info.yaml` and `Content/` must
+be directly under this directory:
+
+```sh
+mkdir -p build/my-service/Content
+```
+
+The directory will become the root of the ZIP archive. Do not add another
+directory level around it when creating the archive.
+
+### 3. Create `info.yaml`
+
+Create `info.yaml` at the package root. Set `Command` to the artifact's path
+relative to `Content/` by using `$PLUGIN_ROOT`:
+
+```yaml
+Name: my-service
+Version: 1.0.0
+Type: wasm
+ContractVersion: 2
+Command: $PLUGIN_ROOT/my-service.wasm
+```
+
+Copy the file into the staging directory:
+
+```sh
+cp info.yaml build/my-service/info.yaml
+```
+
+For a gRPC artifact, set `Type` to `grpc` and point `Command` to the
+executable, for example `Command: $PLUGIN_ROOT/my-service`.
+
+### 4. Place the runtime artifact and static resources
+
+Copy the compiled artifact into `Content/`. Its location must match
+`info.yaml`:
+
+```sh
+cp build/my-service.wasm build/my-service/Content/my-service.wasm
+```
+
+Place any static resources required by the service under the same directory:
+
+```sh
+cp -R pages build/my-service/Content/pages
+cp -R assets build/my-service/Content/assets
+```
+
+The resulting staging directory should look like this:
+
+```text
+build/my-service/
+├── info.yaml
+└── Content/
+    ├── my-service.wasm
+    ├── pages/
+    │   └── index.html
+    └── assets/
+        └── app.js
+```
+
+### 5. Create the ZIP archive
+
+Create the archive from inside the staging directory. This keeps `info.yaml`
+and `Content/` at the archive root:
+
+```sh
+mkdir -p services
+cd build/my-service
+zip -qr ../../services/my-service.plg .
+```
+
+The resulting `services/my-service.plg` is ready to place in the Kernel's
+configured `ServiceDir`. Scan the directory or restart the Kernel to discover
+the package.
+
+## Loading a package
+
+The Kernel's package workflow is:
+
+1. scan `ServiceDir` for `.plg` files;
+2. read and validate each package's `info.yaml`;
+3. extract the selected package into `ServiceTempDir`;
+4. for `wasm` and `grpc`, start the runtime described by `Type` and `Command`,
+   then perform the service's identity handshake; for `static`, read
+   `manifest.yaml` directly; and
+5. connect the transports and routes the service declares.
+
+The package is not considered successfully loaded until this connection step
+succeeds. For `wasm` and `grpc`, the `Name` and `Version` returned during the
+handshake must match the values in `info.yaml`; otherwise the Kernel rejects
+the package.
+
+See [Service configuration](../kernel/config-services) for startup behavior,
+runtime parameters, and the execution user for `grpc` services.

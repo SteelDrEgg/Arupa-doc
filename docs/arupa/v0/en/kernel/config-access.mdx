@@ -5,23 +5,25 @@ description: "Understand how Arupa authenticates users and evaluates access poli
 
 Arupa evaluates access in layers. The Kernel first resolves the identity of the
 requesting user, then applies the policies that protect the host path, the
-plugin, and the specific plugin resource.
+service, and the specific route the service registered.
 
 Every layer that applies to a request must allow it. A more specific policy
-does not override a broader restriction, and a plugin cannot use its own
-resource policy to bypass `Route.Allow` or `Plugin.Allow`.
+does not override a broader restriction, and a service cannot use its own
+route policy to bypass `Route.Allow` or a service-wide `Allow`.
 
 ## Access layers
 
 | Layer | Defined by | Protects |
 | --- | --- | --- |
 | User identity | `Users` and `Groups` | The identity and group membership attached to a request |
-| Host route | `Route.Allow` in `config.toml` | An HTTP path before it reaches a host or plugin handler |
-| Plugin | `Allow` under `Plugins.<name>` | Every HTTP route, static mount, namespace, and event owned by a plugin |
-| Plugin resource | The plugin's registration data | One HTTP route, static mount, Socket.IO namespace, or event |
+| Host route | `Route.Allow` in `config.toml` | An HTTP path before it reaches a host or service handler |
+| Service | `Allow` under `Services.<name>` | Every HTTP route and Socket.IO namespace or event owned by a service, regardless of which transport backs it |
+| Route | The service's route registration | One HTTP route, or one Socket.IO namespace or event |
 
 The first three layers are configured by the Kernel configuration. The last
-layer is declared by the plugin when it registers its resources.
+layer is declared by the service when it registers a route. See [Routes and
+transports](../service/routing) for how a service registers routes and which
+part of the declaration carries the access policy.
 
 ## User identity
 
@@ -35,7 +37,7 @@ containing:
 - the `Authenticated` state.
 
 An invalid or missing session produces an unauthenticated identity. The Kernel
-does not send a user object to a plugin for an unauthenticated request.
+does not send a user object to a service for an unauthenticated request.
 
 Socket.IO performs the same identity resolution during its handshake, using a
 session cookie or an `Authorization` header.
@@ -74,11 +76,11 @@ The two rejection states are different:
 ## Host route access
 
 `Route.Allow` protects HTTP paths before the request reaches either a host
-handler or a plugin handler:
+handler or a service handler:
 
 ```toml
 [Route.Allow]
-  "/api/plugins/launch" = ["root"]
+  "/api/services/start" = ["root"]
   "/api/admin/" = ["root"]
 ```
 
@@ -101,64 +103,68 @@ empty access policy allows everyone; an empty list does not mean “deny all”.
 `Route.Allow` is evaluated for every HTTP request by the outer auth middleware.
 When it rejects a request, it returns the normal JSON `401` or `403` response.
 It does not use the configured `Pages` redirect. See [Pages](./config-pages)
-for browser redirects used by plugin-protected resources.
+for browser redirects used by service-protected resources.
 
-## Plugin-wide access
+## Service-wide access
 
-`Allow` under `[Plugins.<name>]` applies to the plugin as a whole:
+`Allow` under `[Services.<name>]` applies to the service as a whole:
 
 ```toml
-[Plugins.hello]
+[Services.hello]
   Allow = ["staff"]
 ```
 
-This policy is checked before a request or event reaches any resource owned by
-the plugin. It applies to:
+This policy is checked before a request or event reaches any route owned by
+the service. It applies uniformly no matter which transport backs the route:
 
-- the plugin's HTTP routes;
-- the plugin's static file mounts;
-- connections to the plugin's Socket.IO namespaces; and
+- the service's HTTP routes, whether they are handled dynamically or simply
+  serve packaged files through a static transport;
+- connections to the service's Socket.IO namespaces; and
 - events received in those namespaces.
 
-An empty `Allow` list leaves the plugin open at this layer. A non-empty list
+An empty `Allow` list leaves the service open at this layer. A non-empty list
 requires the user to belong to at least one of the listed groups.
 
-`[Plugins.default]` provides the base plugin configuration. A non-empty
-`Allow` list in `[Plugins.<name>]` replaces the default group list for that
-plugin. If the per-plugin list is omitted or empty, the current implementation
+`[Services.default]` provides the base service configuration. A non-empty
+`Allow` list in `[Services.<name>]` replaces the default group list for that
+service. If the per-service list is omitted or empty, the current implementation
 keeps the default list.
 
-The plugin policy is refreshed when the Kernel reloads its configuration, so a
-loaded plugin uses the updated group list for subsequent requests and events.
+The service policy is refreshed when the Kernel reloads its configuration, so a
+loaded service uses the updated group list for subsequent requests and events.
 
-## Plugin resource access
+## Route access
 
-Plugins can add another policy when they register a resource. These policies
-are not written in `config.toml`; they are part of the plugin's registration
-contract.
+A service can add another policy when it registers a route. This policy is
+not written in `config.toml`; it is part of the route declaration the service
+sends to the Kernel, and it applies the same way no matter which transport the
+route is bound to.
 
-An HTTP route and a static mount each have their own `Access` policy. The
-Kernel checks the plugin-wide policy first and the resource policy second:
+An HTTP route carries its own `Access` policy. The Kernel checks the
+service-wide policy first and the route policy second:
 
 ```text
-plugin Allow -> HTTP route Access
-plugin Allow -> static mount Access
+service Allow -> HTTP route Access
 ```
+
+This also covers static content: a route that serves packaged files through a
+static transport is still an HTTP route with its own `Access` policy, checked
+the same way as a route handled dynamically by the service.
 
 For Socket.IO, the checks are applied at two levels:
 
 ```text
-connect: plugin Allow -> namespace Access
-event:   plugin Allow -> namespace Access -> event Access
+connect: service Allow -> namespace Access
+event:   service Allow -> namespace Access -> event Access
 ```
 
 An event policy is optional. If a namespace does not define a policy for an
 event, the namespace policy still applies, but there is no additional event
-check. Events that the plugin did not declare are ignored.
+check. Events that the service did not declare are ignored.
 
 Because every check must pass, the effective permission is the intersection of
-the applicable layers. For example, a user must be in both `staff` from
-`Plugin.Allow` and `operators` from a route's `Access.Groups` to reach that
+the applicable layers. For example, a user must be in both `staff` from the
+service's `Allow` and `operators` from a route's `Access.Groups` to reach that
 route.
 
 ## Example
@@ -174,17 +180,17 @@ With the following configuration:
   staff = ["alice"]
 
 [Route.Allow]
-  "/api/plugins" = ["root"]
+  "/api/services" = ["root"]
 
-[Plugins.hello]
+[Services.hello]
   Allow = ["staff"]
 ```
 
-The `admin` user can pass the `/api/plugins` host-route rule because they are
+The `admin` user can pass the `/api/services` host-route rule because they are
 in `root`. `alice` is authenticated but receives `403 Forbidden` for that
 path because they are not in `root`. An unauthenticated request receives
 `401 Unauthorized`.
 
-The same `admin` user cannot access any resource protected by the `hello`
-plugin's `Allow = ["staff"]` because `admin` is not in `staff`. Being
+The same `admin` user cannot access any route protected by the `hello`
+service's `Allow = ["staff"]` because `admin` is not in `staff`. Being
 authenticated is not enough when a policy names groups.

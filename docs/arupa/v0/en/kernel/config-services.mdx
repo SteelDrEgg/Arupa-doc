@@ -1,0 +1,180 @@
+---
+title: "Service configuration"
+description: "Configure service startup, execution, access, and parameters."
+---
+
+The `[Services]` section controls how the Kernel discovers and runs each
+service. A service is identified by the name declared in its package
+metadata. The configuration for that name is then used when the service is
+loaded.
+
+```toml
+[Services]
+  [Services.default]
+    Restart = "no"
+    RunAsUser = ""
+
+  [Services.hello]
+    Restart = "no"
+    RunAsUser = ""
+    Checksum = "sha256:<digest>"
+    Allow = ["staff"]
+
+    [Services.hello.Params]
+      greeting = "env://HIHI?"
+```
+
+## Default configuration
+
+`[Services.default]` provides a base configuration for discovered services. A
+`[Services.<name>]` table is merged on top of that base to produce the
+effective configuration for one service.
+
+The merge rules are:
+
+- a non-empty `Restart` value replaces the default;
+- a non-empty `RunAsUser` value replaces the default;
+- a non-empty `Checksum` value replaces the default;
+- a non-empty `Allow` list replaces the default group list; and
+- `Params` are merged by key, with the per-service value taking precedence.
+
+An empty or omitted per-service value does not clear an inherited default for
+these fields. In particular, setting `Allow = []` does not remove a non-empty
+default `Allow` list in the current implementation.
+
+Only a service with a matching name receives its named configuration. If a
+name appears in `[Services]` but no matching package is found in
+`ServiceDir`, the Kernel reports that configured service as missing during
+its scan.
+
+## `Restart`
+
+Despite its name, `Restart` currently controls whether the service starts
+automatically when the Kernel starts. It is not a general crash-restart loop.
+
+The following values enable automatic startup, ignoring case and surrounding
+whitespace:
+
+```text
+always, yes, true, on, enable, enabled, 1
+```
+
+Other values, including `no`, `false`, and `off`, disable automatic startup.
+A disabled service can still be discovered by the service manager and started
+by an explicit management action.
+
+Changing `Restart` in the configuration does not by itself start or stop an
+already running service. It is used when the Kernel decides which discovered
+services to start during its startup sequence.
+
+## `RunAsUser`
+
+`RunAsUser` selects the operating-system user used to run a `grpc` service
+process. An empty value means that the service runs as the current Arupa
+process user.
+
+```toml
+[Services.ssh]
+  RunAsUser = "arupa-service"
+```
+
+This setting only has an effect on `grpc` services, because they are the only
+services that run as a separate operating-system process. It has no effect on
+a `wasm` service, which runs inside the Kernel process, or on a `static`
+service, which has no process or module to start at all. The Kernel must have
+the operating-system permissions required to start a process as the selected
+user. If you leave the value empty, the Kernel does not switch users.
+
+## `Checksum`
+
+`Checksum` verifies the integrity of a service package before the Kernel
+extracts or loads it. Set it to the SHA-256 digest of the complete `.plg`
+archive, including the `sha256:` prefix:
+
+```toml
+[Services.hello]
+  Checksum = "sha256:<digest>"
+```
+
+The value must use the form `sha256:<64 hexadecimal digits>`. The algorithm
+name and hexadecimal digest are case-insensitive. An empty or omitted value
+disables verification. Replace `<digest>` with the 64-digit digest of your
+package.
+
+Calculate the digest from the `.plg` file itself, not from its extracted
+contents. For example, the output of `sha256sum hello.plg` is the digest to
+place after `sha256:`.
+
+The Kernel rejects the configuration if a non-empty checksum does not match
+the required format.
+
+When the digest does not match, the Kernel refuses to load or start that
+service. Use a per-service checksum in most cases. Although `Checksum` can be
+set in `[Services.default]`, that value is inherited by every service without
+its own non-empty checksum. Checksum verification applies to every runtime
+type, including `static`, because it protects the package archive itself.
+
+## `Allow`
+
+`Allow` is the service-wide access restriction. It contains group names from
+the [`Groups`](./config-users) configuration:
+
+```toml
+[Services.hello]
+  Allow = ["staff"]
+```
+
+An empty list leaves the service open at this layer. A non-empty list allows a
+user who belongs to at least one listed group. The policy applies to every
+route owned by the service, whatever transport backs it — HTTP routes, static
+content served through a static transport, Socket.IO namespaces, and events.
+
+Service-wide access is combined with host route rules and route-level
+policies. Every applicable policy must allow the request. See [Access
+control](./config-access) for the complete permission model.
+
+## `Params`
+
+`Params` contains arbitrary string settings passed to the service during
+registration:
+
+```toml
+[Services.hello.Params]
+  greeting = "hello"
+  endpoint = "https://example.com"
+```
+
+Parameters from `[Services.default.Params]` form the base. Keys in
+`[Services.<name>.Params]` override matching default keys, while unrelated
+default keys remain available to the service.
+
+### Environment references
+
+A parameter value can refer to an environment variable instead of storing the
+value directly in `config.toml`:
+
+```toml
+[Services.hello.Params]
+  required_secret = "env://ARUPA_SECRET"
+  optional_label = "env://ARUPA_LABEL?"
+```
+
+The Kernel resolves these references when the service registers:
+
+- `env://NAME` requires the environment variable to exist. If it is missing,
+  service loading fails.
+- `env://NAME?` is optional. If the variable is missing, the service receives
+  an empty string.
+- Values without the `env://` prefix are passed through unchanged.
+
+The `?` must be the final character of the reference, and the environment
+variable name must not contain surrounding whitespace.
+
+## Configuration changes
+
+The Kernel can reload the service configuration without rebuilding the HTTP
+server. A reload updates the effective configuration held by the service
+manager and refreshes the `Allow` groups for loaded services. Changes to
+`Params`, `RunAsUser`, `Checksum`, or startup behavior are used when the
+service is next loaded or started; they do not rewrite an already running
+service process.

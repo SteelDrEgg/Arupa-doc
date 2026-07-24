@@ -1,0 +1,31 @@
+---
+title: "Transports"
+description: "Choose how a service connects its features to the Arupa application."
+---
+
+A transport is an endpoint a service owns. A route then binds a URL pattern or
+Socket.IO namespace to a transport, and the Kernel forwards matching requests
+or events accordingly. If you haven't already, read [Routes and
+transports](./routing) first — it explains how the two pieces relate and why
+they're separate before you dive into a specific transport type.
+
+Choose a transport based on the interaction your feature needs:
+
+- [Static transport](./transport-static) serves packaged files directly, such
+  as pages, stylesheets, scripts, and images.
+- [HTTP transport](./transport-http) sends dynamic request/response work to a
+  service handler.
+- [Socket.IO transport](./transport-socket.io) connects a service to
+  namespace-based, event-driven communication.
+- [Proxy transport](./transport-proxy) streams HTTP, WebSocket, or Socket.IO
+  traffic straight through to an upstream address the service owns, instead
+  of round-tripping every request through the service's own handler code.
+
+Static resources do not need service code to handle each request. Use HTTP
+when the response must be computed by your service, Socket.IO when clients
+need a persistent connection or real-time events, and proxy when the service
+already has its own server and just needs the Kernel to expose it.
+
+Each transport has its own configuration and, through the routes bound to it,
+its own matching and access rules. Read the relevant page before declaring a
+transport so that its behavior matches what you want to expose.

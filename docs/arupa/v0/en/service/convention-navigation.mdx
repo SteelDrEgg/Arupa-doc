@@ -1,0 +1,75 @@
+---
+title: "Navigation"
+description: "Define how a service contributes a page to the application navigation."
+---
+
+The application navigation is built from service metadata. If your service
+exposes a user-facing page, add the navigation metadata to its `info.yaml`
+manifest. These fields are part of the service metadata convention. They are
+not an API belonging to a particular navigation service.
+
+## Page metadata
+
+The following metadata fields define a navigation entry:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `Entry` | Yes | The application URL loaded when the user selects the service. |
+| `DisplayName` | No | The label shown in the navigation. If omitted, the service `Name` is used. |
+| `Icon` | No | The icon URL shown when the entry is inactive. |
+| `IconSolid` | No | The icon URL shown when the entry is active. If omitted, `Icon` is used. |
+
+`Entry` must be a URL served by one of the service's HTTP routes, whether it
+is handled dynamically or served through a static transport. The navigation
+UI loads this URL in an iframe, so the page and its assets must be reachable
+through the application's URL space.
+
+For example, a manifest can declare page metadata like this:
+
+```yaml
+DisplayName: "Service page"
+Entry: "/example/pages/index.html"
+Icon: "/assets/icon/example.svg"
+IconSolid: "/assets/icon/example-solid.svg"
+```
+
+The navigation system only creates an entry when all of the following
+conditions hold:
+
+- The service has an `Entry` value.
+- The service status is `running` or `degraded`.
+- The service name is not excluded by the host's navigation configuration.
+
+Discovery alone is not enough. A service that is installed but not running is
+not shown in the navigation.
+
+## Ordering and visibility
+
+The current navigation implementation reads its behavior from
+`[Services.navigator.Params]` in the application configuration. These settings
+control how the host presents service entries; they do not replace the page
+metadata in your manifest.
+
+| Parameter | Format | Meaning |
+| --- | --- | --- |
+| `order` | Comma-separated service names | Places the listed services first, in the specified order. Other visible services follow in the Kernel's service-list order. |
+| `ignore` | Comma-separated service names | Excludes the listed services from navigation, even when they are running. |
+| `i18n` | Comma-separated language codes | Defines the languages available in the navigation UI. |
+| `languages` | Comma-separated language codes | Alias for `i18n`. `i18n` takes precedence when both are set. |
+
+Names in `order` and `ignore` are service `Name` values, not display labels.
+Whitespace around comma-separated values is ignored. Empty values are ignored.
+If no language is configured, the navigation UI uses `en`.
+
+The `order` parameter does not hide services that are not listed. It only moves
+listed services ahead of the remaining visible entries.
+
+## Icon behavior
+
+Icons are referenced by public URL. The current navigation implementation uses
+`Icon` for inactive entries and `IconSolid` for the selected entry. If no icon
+is declared, it uses a default navigation icon.
+
+Use an icon URL that remains available for as long as the navigation entry is
+visible. The icon file should be provided through a static route or another
+stable public resource path.

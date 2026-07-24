@@ -1,0 +1,93 @@
+---
+title: "Routes and transports"
+description: "Understand how a service connects its features to the Arupa application."
+---
+
+A service exposes its features to the rest of the application through two
+related declarations: transports and routes. Understanding how they relate
+makes the individual [transport pages](./transport) easier to follow.
+
+## Transport: the endpoint
+
+A transport is something a service owns that can serve traffic. Each
+transport has:
+
+- an **id**, chosen by the service and unique within that service;
+- a **type**, one of `static`, `http`, `socket.io`, or `proxy`; and
+- type-specific configuration — for example, a `static` transport names the
+  file or directory it serves, and a `proxy` transport names the upstream it
+  forwards to.
+
+Registering a transport makes the endpoint exist, but it does not by itself
+make the endpoint reachable at a URL or namespace. That binding is the route's
+job.
+
+## Route: the binding
+
+A route connects a URL pattern or a Socket.IO namespace to one transport,
+identified by the transport's id. A route has:
+
+- an **id**, chosen by the service and unique within that service;
+- the **id of the transport** it binds to; and
+- exactly one of an HTTP declaration (`method`, `pattern`, `access`) or a
+  Socket.IO declaration (`namespace`, `events`, `access`, `event_access`).
+
+An HTTP route can bind to a `static`, `http`, or `proxy` transport — whichever
+one should handle requests at that pattern. A Socket.IO route can only bind to
+a `socket.io` transport. The access policy lives on the route, not the
+transport, so the same transport type is configured identically regardless of
+who can reach it; what changes per route is *who can reach it and at what
+URL or namespace*.
+
+## Why they're separate
+
+Splitting the endpoint from the binding lets you:
+
+- expose the same transport at more than one route — for example, one static
+  file source reachable at two different URL prefixes;
+- change which paths point at a feature without recreating the underlying
+  connection, which matters most for a `proxy` transport, where the upstream
+  connection is comparatively expensive to set up; and
+- reason about ownership and cleanup independently: transports and routes are
+  two registries, and the Kernel is the only thing allowed to coordinate
+  between them.
+
+## Registering and removing resources
+
+A `wasm` or `grpc` service can register and unregister transports and routes
+at any point while it is running, not only at startup — see
+[Protocol](./protocol) for where this fits in the service lifecycle. A
+`static` service instead declares its transports and routes once, up front,
+in its package manifest; see [Static services](./static-service).
+
+A few rules apply consistently:
+
+- A transport cannot be removed while a route still references it. Remove
+  the route first.
+- When a batch of routes is registered together, successful items stay
+  registered even if others in the same batch fail; a failure marks the
+  service `degraded` rather than rejecting the whole batch.
+- When a service session ends — the process exits, the WASM instance is
+  unloaded, or the service is stopped through the management API — the
+  Kernel removes all of that service's routes and then its transports, so a
+  dead service session can never leave a reachable but unowned binding.
+
+## Conflicts
+
+Routes from different services share the same URL space, so the Kernel
+rejects a conflicting registration rather than silently overwriting one
+service's route with another's:
+
+- The same path cannot be owned by two different services, even for
+  different HTTP methods.
+- A route with no method (matching every method) conflicts with every
+  method-specific route at the same path.
+- A route backed by a `static` transport and a route backed by a non-static
+  transport conflict at the same path, even if the methods would otherwise
+  be compatible — a path is either served as static content or handled
+  dynamically, not both.
+
+See [Kernel routing](../kernel/route) for the path-pattern language itself —
+exact versus subtree matching, the root path, and how the longest matching
+pattern is chosen — and the transport-specific pages for what each transport
+type needs from its route.

@@ -1,0 +1,29 @@
+---
+title: "Inter-service communication"
+description: "Choose how services share state and exchange messages."
+---
+
+Inter-service communication (ISC) lets services cooperate through
+capabilities provided by the Arupa Kernel. Services do not need to share
+memory or connect to each other's internal transports. The Kernel provides
+the communication boundary and applies the same behavior to WASM and gRPC
+services.
+
+Choose the mechanism based on what you need to share:
+
+- [KV storage](./isc-kv) provides shared in-memory state organized by
+  namespace and key. Use it for values that other services may read or
+  update later.
+- [Service messages](./isc-message) provide synchronous, point-to-point
+  request/response communication. Use them when one service needs another
+  service to perform an operation immediately and return a result.
+
+KV values are not durable and service messages are not queued or persisted.
+If data must survive a Kernel restart, store it in a durable system outside
+these ISC mechanisms. If a request must be delivered asynchronously or to
+multiple services, define that behavior explicitly in your application
+rather than assuming that the Kernel will queue or broadcast it.
+
+Both mechanisms carry data across the service boundary through the generated
+protocol bindings. Keep the data format and ownership rules clear between the
+services that participate in the communication.

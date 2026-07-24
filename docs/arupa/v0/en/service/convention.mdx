@@ -1,0 +1,46 @@
+---
+title: "Conventions"
+description: "Understand how services use shared conventions to cooperate outside the Kernel."
+---
+
+A convention is a shared agreement between services about names, data
+formats, metadata, URLs, or frontend behavior. The Kernel provides the
+service runtime, transports, ISC, and lifecycle.
+
+Services can build those features outside the Kernel by following the same
+conventions. One service publishes a resource or capability, and another
+service recognizes it by its agreed name and format.
+
+## Why conventions matter
+
+Conventions keep service integrations independent from a particular
+provider. A service can be replaced when the replacement publishes the same
+metadata and follows the same behavior. You can also add a custom provider or
+consumer without changing the Kernel or extending the service protocol.
+
+This makes conventions useful for application-level behavior such as:
+
+- publishing discoverable resource URLs;
+- exposing service pages in the application navigation;
+- sharing the application's visual theme and frontend styling;
+- providing optional browser-side helper behavior.
+
+The Kernel transports and ISC mechanisms remain the foundation, but the
+meaning of a convention belongs to the participating services.
+
+## Core service implementations
+
+The conventions in this section are currently implemented by `coreplugins`.
+They are recommended conventions for services that want to integrate with the
+standard application experience. They are not additional Kernel APIs, and a
+service should not depend on private implementation details of the provider.
+
+| Convention | Current implementation | Purpose |
+| --- | --- | --- |
+| [KV](./convention-kv) | Core resource and system services | Defines shared KV names and the metadata published for discoverable resources. |
+| [Navigation](./convention-navigation) | `navigator` | Defines the service manifest metadata used to expose a service page. |
+| [Styling](./convention-styling) | `web-assets` and `web-sdk` | Defines the shared frontend theme, styling resources, and theme state. |
+
+The implementation may change as long as the convention remains compatible.
+If you replace one of these services, preserve the keys, metadata meanings,
+URLs, or browser behavior that other services consume.
