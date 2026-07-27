@@ -1,0 +1,128 @@
+---
+title: "Static 服务"
+description: "使用 static 运行时类型，打包完全不含服务代码的资源。"
+---
+
+`static` 是一种服务运行时类型，在 `info.yaml` 中设置为 `Type: static`，与 `wasm` 和 `grpc` 并列。static 服务没有进程，也没有需要启动的模块。它存在的唯一目的，就是打包一组固定的传输和路由——通常是文件，但 static 服务也可以声明一个固定的代理——并让内核直接提供服务，而完全不需要运行任何服务代码。
+
+这与 **static 传输** 是不同的概念：static 传输是四种传输类型之一，可以由任意运行时类型的服务注册。`wasm` 或 `grpc` 服务可以为其打包的资源注册一个 static 传输，同时动态处理其他路由。而 `static` *服务* 则不同，它没有其他类型的路由需要处理——它暴露的一切都是提前声明好的。
+
+## 何时使用
+
+当某项功能完全是打包好的内容、不涉及任何请求时逻辑时，请选择 static 服务：文档合集、预先构建好的单页应用、共享的图标或字体包，或者一个指向已经在运行、内核无需自行启动的后端的固定代理。如果任何一条路由需要检查请求内容、计算响应，或调用另一个服务，请改用 `wasm` 或 `grpc`。
+
+## 通过 `manifest.yaml` 声明资源
+
+static 服务在 `manifest.yaml` 中声明其传输和路由，该文件位于包根目录，与 `info.yaml` 并列：
+
+```text
+docs.plg
+├── info.yaml
+├── manifest.yaml
+└── Content/
+    └── public/
+        └── index.html
+```
+
+`info.yaml` 依然用于标识该包，但省略了 `Command`：
+
+```yaml
+Name: docs
+Version: 1.0.0
+Type: static
+ContractVersion: 2
+```
+
+`manifest.yaml` 列出该服务拥有的传输，以及将它们绑定到 URL 上的路由：
+
+```yaml
+version: 1
+transports:
+  - id: assets
+    type: static
+    source: public
+routes:
+  - id: site
+    transport: assets
+    http:
+      pattern: /
+```
+
+每一项都遵循[路由与传输](./routing)中从概念上描述的相同结构：一个传输拥有一个 `id`、一个 `type` 以及特定于该类型的配置，一个路由则把一个 `transport` id 绑定到某个 HTTP 模式或 Socket.IO 命名空间上。每种传输类型具体接受哪些字段，在 [Static 传输](./transport-static)和[Proxy 传输](./transport-proxy)中有说明。static 传输的 `source` 是一个相对于包解压后的 `Content` 目录的路径——与包中其他地方 `$PLUGIN_ROOT` 所引用的根目录相同。
+
+## 访问策略
+
+清单中的路由和其他任何 HTTP 路由一样，携带一个 `access` 策略——策略模型本身请参阅[访问控制](../kernel/config-access)。添加 `require_auth`，要求整个站点都必须由已登录用户访问：
+
+```yaml
+version: 1
+
+transports:
+  - id: assets
+    type: static
+    source: public
+
+routes:
+  - id: site
+    transport: assets
+    http:
+      method: GET
+      pattern: /
+      access:
+        require_auth: true
+```
+
+一份清单可以针对同一个传输声明多条路由，每条路由都有自己的 `access`。例如，可以在同一个 `assets` 来源之上再添加第二条限制更严格的路由，用于管理员专属的区域：
+
+```yaml
+routes:
+  - id: admin-site
+    transport: assets
+    http:
+      method: GET
+      pattern: /admin/
+      access:
+        groups:
+          - administrators
+          - operators
+```
+
+空的或省略的 `access` 会让该路由保持公开，但仍受该服务已配置的服务级 `Allow` 约束——参阅[服务配置](../kernel/config-services)。除此之外，`access` 遵循的都是[访问控制](../kernel/config-access)中描述的同一种 `require_auth` / `groups` 结构，无论该路由属于 `static` 服务，还是由 `wasm` 或 `grpc` 服务在运行期间注册的路由。
+
+## static 服务中的代理
+
+`manifest.yaml` 中的路由并不局限于 `static` 传输类型。带有 `unix` 或 `tcp` 目标的 `proxy` 传输同样可以在这里声明，因为这些目标指向的是已经在别处监听的地址——没有需要内核启动的进程，因此也不需要继承任何东西。`inherited` 代理目标只对内核正在启动的 `grpc` 服务才有意义，因此不适用于 static 服务。
+
+例如，一个只是把所有流量转发给同一主机上已经运行的后端的 static 服务：
+
+```yaml
+version: 1
+transports:
+  - id: upstream
+    type: proxy
+    proxy:
+      network: tcp
+      address: 127.0.0.1:8181
+      scheme: http
+routes:
+  - id: root
+    transport: upstream
+    http:
+      pattern: /
+```
+
+`network`、`address` 和 `scheme` 分别代表什么、有哪些可用的网络类型，以及内核在转发请求之前对请求头和访问检查做了什么，请参阅[Proxy 传输](./transport-proxy)——这种清单写法，只是 static 服务用来注册同一种代理传输的方式，效果等同于 `grpc` 服务在运行期间注册的代理传输。
+
+## 加载方式与 `wasm`、`grpc` 的区别
+
+对于 `wasm` 或 `grpc` 服务，内核会启动其运行时、完成一次身份握手，然后该服务在运行期间注册自己的传输和路由——参阅[协议](./protocol)。static 服务则跳过了这一整套流程：内核直接读取 `manifest.yaml`，并通过相同的底层机制注册其中声明的传输和路由，既不需要握手，另一端也没有正在运行的进程。
+
+这也改变了[服务配置](../kernel/config-services)中哪些逐服务设置会生效：
+
+- `RunAsUser` 没有任何效果，因为没有进程可以以特定操作系统用户身份启动。
+- `Checksum` 仍然适用，因为它验证的是 `.plg` 归档文件本身，而不是运行时的任何内容。
+- `Restart` 仍然控制该服务是否在内核启动时自动加载，尽管对 static 服务而言，"启动"仅仅意味着注册其清单。
+
+## 冲突与清理
+
+static 服务的路由和其他任何服务的路由一样，遵循相同的冲突规则——路径归属以及 static 与非 static 的冲突规则，请参阅[路由与传输](./routing)。停止一个 static 服务会以与停止其他任何服务相同的方式移除其路由和传输，尽管实际上并没有任何东西真正在运行。

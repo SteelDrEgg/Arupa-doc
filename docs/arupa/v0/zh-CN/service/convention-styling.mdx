@@ -1,0 +1,65 @@
+---
+title: "样式"
+description: "了解服务页面共享的样式和主题惯例。"
+---
+
+服务页面使用 Tailwind CSS 和 DaisyUI 作为通用的样式词汇。Tailwind CSS 提供工具类，DaisyUI 提供组件样式和语义化的组件变体。
+
+Tailwind CSS 是服务页面推荐使用的样式层。当服务需要用到其组件类时，也可以使用 DaisyUI。对于拥有自己前端构建流程的服务而言，这两个库都不是必需的，唯一的要求是该页面遵循下文描述的共享主题方案。
+
+## 共享样式资源
+
+应用目前发布了以下前端资源：
+
+| 资源 | 用途 |
+| --- | --- |
+| `/assets/css/tailwindcss@4` | Tailwind CSS v4 浏览器运行时。 |
+| `/assets/css/daisyui@5.css` | DaisyUI v5 组件样式和语义化工具类。 |
+| `/assets/css/scheme.css` | 共享的浅色和深色主题变量。 |
+
+Tailwind 和 DaisyUI 资源提供了一种快速启动服务前端的方式。服务也可以选择自行编译 CSS 和 JavaScript，这样的前端只需要与 `/assets/css/scheme.css` 及其定义的主题状态保持兼容即可。
+
+## 主题方案
+
+共享的主题方案可以在 `/assets/css/scheme.css` 中获取，它为 `body.light` 和 `body.dark` 定义了变量。这些变量是应用和服务页面之间的视觉契约。
+
+```css
+body.dark {
+    --color-base-100: oklch(0.2161 0.0061 303.89);
+    --color-base-200: oklch(0.1456 0.0028 303.89);
+    --color-base-300: oklch(0.267 0.0058 303.89);
+    --color-base-content: oklch(97.747% 0.007 106.545);
+    --color-primary: oklch(0.7375 0.1677 303.89 / 0.2);
+    --color-primary-content: oklch(0.7375 0.1677 303.89);
+    --color-secondary: oklch(0.5453 0.1677 303.89 / 0.2);
+    --color-secondary-content: oklch(0.7375 0.1677 303.89);
+    --color-accent: oklch(83.392% 0.124 66.558);
+    --color-accent-content: oklch(16.678% 0.024 66.558);
+    --color-neutral: oklch(0.267 0.0037 303.89);
+    --color-neutral-content: oklch(0.7071 0.0027 303.89);
+    --color-info: oklch(0.6271 0.1699 248.3);
+    --color-info-content: oklch(17.652% 0.018 212.846);
+    --color-success: oklab(0.627052 -0.145969 0.0869672);
+    --color-success-content: oklch(0% 0 0);
+    --color-warning: oklab(0.68064 0.0348215 0.137956);
+    --color-warning-content: oklch(19.106% 0.026 112.757);
+    --color-error: oklch(0.6271 0.1699 25.79);
+    --color-error-content: oklch(13.644% 0.041 24.43);
+    --radius-selector: 0.5rem;
+    --radius-field: 0.5rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.21875rem;
+    --border: 1px;
+    --depth: 1;
+    --noise: 0;
+}
+```
+
+服务应当使用这些语义化变量，而不是固定的颜色值。
+
+## 主题切换
+
+所选的主题通过浏览器存储中的 `arupa.theme` 键共享。其值为 `light` 或 `dark`，生效的默认值是 `light`。存储中保存的是应用范围内的统一选择，而每个服务页面则通过自身的 `body.light` 或 `body.dark` 状态来体现这一选择。
+
+更改该存储值就是应用范围内的主题切换。服务页面必须响应该变化，以便所有可见页面使用相同的主题。`web-sdk` 服务提供了一套便捷的 API 用于读取、写入和监听该存储值，但该存储惯例本身并不依赖于这个 SDK。

@@ -14,20 +14,23 @@ protocol needs — and re-implementing that behavior through the request/reply
 
 ## Register a proxy transport
 
-A proxy transport names the upstream target:
+A proxy transport has an `id` and a `type` of `proxy`, like any other
+transport, plus a nested `proxy` block naming the upstream target:
 
 | Property | Meaning |
 | --- | --- |
 | `id` | Identifier used by routes to bind to this transport. |
-| `network` | How the Kernel reaches the upstream: `inherited`, `unix`, or `tcp`. |
-| `address` | Target address. Meaning depends on `network`. |
-| `scheme` | `http` or `https`, for how the Kernel connects to the upstream. |
+| `proxy.network` | How the Kernel reaches the upstream: `inherited`, `unix`, or `tcp`. |
+| `proxy.address` | Target address. Meaning depends on `network`. |
+| `proxy.scheme` | `http` or `https`, for how the Kernel connects to the upstream. |
 
-```text
-id:      web
-network: unix
-address: /run/my-service/app.sock
-scheme:  http
+```yaml
+id: web
+type: proxy
+proxy:
+  network: unix
+  address: /run/my-service/app.sock
+  scheme: http
 ```
 
 ### Network kinds

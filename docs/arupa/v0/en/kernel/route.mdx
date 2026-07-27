@@ -128,6 +128,38 @@ route is declared and bound to a transport — including the static transport
 that serves packaged files without running service code — see [Routes and
 transports](../service/routing).
 
+## Reserved paths
+
+Before any service registers a route, the Kernel reserves a fixed set of
+HTTP paths for itself — the paths behind login, its own service management
+API, and the Socket.IO transport:
+
+```text
+/socket.io/
+/api/login
+/api/logout
+/api/check-auth
+/api/services/discovered
+/api/services/running
+/api/services/start
+/api/services/stop
+/api/services/restart
+/api/services/config
+/api/kernel/version
+/api/kernel/reload
+```
+
+These reservations go through the same router services use, so a service
+cannot register an HTTP route at exactly one of these patterns; the attempt
+fails the same way it would against a path another service already owns.
+Only paths implemented directly by the Kernel are reserved this way —
+everything else, including the pages a core service such as login serves,
+competes for path ownership like any other service route.
+
+This list is defined by the Kernel and may grow in future versions; treat it
+as the set of paths no service can claim, rather than a fixed, permanent
+list.
+
 ## Static routes
 
 A route bound to a static transport uses the same path-pattern rules as any

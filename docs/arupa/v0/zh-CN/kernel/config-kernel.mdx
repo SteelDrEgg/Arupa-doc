@@ -3,14 +3,14 @@ title: "内核"
 description: "配置 Arupa 内核所需的地址和目录。"
 ---
 
-内核在启动其服务器和插件系统之前需要一些设置。这些设置在 TOML
+内核在启动其服务器和服务系统之前需要一些设置。这些设置在 TOML
 配置文件的顶层定义：
 
 ```toml
 Listen = ":8080"
 TLS = false
-PluginDir = "plugins"
-PluginTempDir = "tmp"
+ServiceDir = "services"
+ServiceTempDir = "tmp"
 ```
 
 ## `Listen`
@@ -26,43 +26,40 @@ Listen = "127.0.0.1:8080"
 
 ## `TLS`
 
-`TLS` 选项用于为 Kernel 服务器启用 HTTPS。当需要在私有网络中加密 Kernel 与客户端或反向代理之间的流量时，请将其设置为 `true`：
+`TLS` 选项用于为内核服务器启用 HTTPS。当需要在私有网络中加密内核与客户端或反向代理之间的流量时，请将其设置为 `true`：
 
 ```toml
 Listen = ":8080"
 TLS = true
 ```
 
-启用该选项后，Kernel 每次启动时都会在内存中生成一个新的自签名证书。
+启用该选项后，内核每次启动时都会在内存中生成一个新的自签名证书。
 该证书适用于 `localhost`、`127.0.0.1` 和 `::1`，且服务器要求使用 TLS 1.2 或更高版本。证书和私钥不会写入磁盘。
 
 由于证书是自签名的且每次重启后都会变更，反向代理或隧道可能无法默认验证该证书。请配置代理使用 HTTPS 进行上游连接，并明确允许不受信任的源证书。
-仅当代理能够通过受信任的私有网络访问 Kernel 时，才应采取此做法。
+仅当代理能够通过受信任的私有网络访问内核时，才应采取此做法。
 
 例如，配置一个禁用 TLS 验证的 NGINX 上游：
 
 ```nginx
 location / {
-proxy_pass https://127.0.0.1:8080;
-proxy_ssl_verify off;
+    proxy_pass https://127.0.0.1:8080;
+    proxy_ssl_verify off;
 }
 ```
 
-如果 TLS 在反向代理处配置，且从该代理到 Kernel 的连接无需加密，请保持 `TLS = false`。
+如果 TLS 在反向代理处终止，且从该代理到内核的连接无需加密，请保持 `TLS = false`。
 
-## `PluginDir`
+## `ServiceDir`
 
-`PluginDir` 是内核扫描 `.plg` 插件包的目录。
-插件管理器使用此目录来发现可供 Arupa 使用的插件。
+`ServiceDir` 是内核扫描 `.plg` 服务包的目录。
+服务管理器使用此目录来发现可供 Arupa 使用的服务。
 该路径可以是绝对路径，也可以是相对于进程工作目录的相对路径。
-在示例配置中，`plugins` 指的是位于 Arupa 启动目录旁边的 `plugins` 目录。
+在示例配置中，`services` 指的是位于 Arupa 启动目录旁边的 `services` 目录。
 
+## `ServiceTempDir`
 
-## `PluginTempDir`
-
-`PluginTempDir` 是内核加载插件时使用的可写临时目录。
-Arupa 会在启动插件之前将其解压到此目录中。
-该目录必须对 Arupa 进程具有写入权限。它与以下目录分开：
-
-`PluginDir` 将原始的 `.plg` 包保留在 `PluginDir` 中，并将
-`PluginTempDir` 用于内核提取的运行时文件。
+`ServiceTempDir` 是内核加载服务时使用的可写临时目录。
+Arupa 会在启动服务之前将其包解压到此目录中。
+该目录必须对 Arupa 进程具有写入权限，并且与 `ServiceDir` 相互独立：
+将原始的 `.plg` 包保留在 `ServiceDir` 中，而将 `ServiceTempDir` 用于内核提取出的运行时文件。

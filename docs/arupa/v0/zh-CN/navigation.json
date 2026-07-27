@@ -23,45 +23,48 @@
             "docs/arupa/v0/zh-CN/kernel/config-users",
             "docs/arupa/v0/zh-CN/kernel/config-access",
             "docs/arupa/v0/zh-CN/kernel/config-pages",
-            "docs/arupa/v0/zh-CN/kernel/config-plugins",
+            "docs/arupa/v0/zh-CN/kernel/config-services",
             "docs/arupa/v0/zh-CN/kernel/config-logging"
           ]
         },
-        "docs/arupa/v0/zh-CN/kernel/plugins",
+        "docs/arupa/v0/zh-CN/kernel/services",
         "docs/arupa/v0/zh-CN/kernel/route"
       ]
     },
     {
-      "group": "插件",
+      "group": "服务",
       "pages": [
-        "docs/arupa/v0/zh-CN/plugin/introduction",
-        "docs/arupa/v0/zh-CN/plugin/plg",
-        "docs/arupa/v0/zh-CN/plugin/proto",
+        "docs/arupa/v0/zh-CN/service/introduction",
+        "docs/arupa/v0/zh-CN/service/package",
+        "docs/arupa/v0/zh-CN/service/protocol",
+        "docs/arupa/v0/zh-CN/service/routing",
+        "docs/arupa/v0/zh-CN/service/static-service",
         {
-          "group": "传输方式",
-          "root": "docs/arupa/v0/zh-CN/plugin/transport",
+          "group": "传输",
+          "root": "docs/arupa/v0/zh-CN/service/transport",
           "pages": [
-            "docs/arupa/v0/zh-CN/plugin/transport-static",
-            "docs/arupa/v0/zh-CN/plugin/transport-http",
-            "docs/arupa/v0/zh-CN/plugin/transport-socket.io"
+            "docs/arupa/v0/zh-CN/service/transport-static",
+            "docs/arupa/v0/zh-CN/service/transport-http",
+            "docs/arupa/v0/zh-CN/service/transport-socket.io",
+            "docs/arupa/v0/zh-CN/service/transport-proxy"
           ]
         },
         {
-          "group": "插件间通信",
-          "root": "docs/arupa/v0/zh-CN/plugin/ipc",
+          "group": "服务间通信",
+          "root": "docs/arupa/v0/zh-CN/service/isc",
           "pages": [
-            "docs/arupa/v0/zh-CN/plugin/ipc-kv",
-            "docs/arupa/v0/zh-CN/plugin/ipc-message"
+            "docs/arupa/v0/zh-CN/service/isc-kv",
+            "docs/arupa/v0/zh-CN/service/isc-message"
           ]
         },
-        "docs/arupa/v0/zh-CN/plugin/logging",
+        "docs/arupa/v0/zh-CN/service/logging",
         {
           "group": "惯例",
-          "root": "docs/arupa/v0/zh-CN/plugin/convention",
+          "root": "docs/arupa/v0/zh-CN/service/convention",
           "pages": [
-            "docs/arupa/v0/zh-CN/plugin/convention-kv",
-            "docs/arupa/v0/zh-CN/plugin/convention-navigation",
-            "docs/arupa/v0/zh-CN/plugin/convention-styling"
+            "docs/arupa/v0/zh-CN/service/convention-kv",
+            "docs/arupa/v0/zh-CN/service/convention-navigation",
+            "docs/arupa/v0/zh-CN/service/convention-styling"
           ]
         }
       ]

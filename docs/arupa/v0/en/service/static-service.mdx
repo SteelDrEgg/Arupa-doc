@@ -64,12 +64,65 @@ routes:
       pattern: /
 ```
 
-Each entry follows the same shape described in [Routes and
+Each entry follows the same shape described conceptually in [Routes and
 transports](./routing): a transport has an `id`, a `type`, and type-specific
 configuration, and a route binds a `transport` id to an HTTP pattern or a
-Socket.IO namespace. A static transport's `source` is a path relative to the
-package's extracted `Content` directory — the same root referenced by
-`$PLUGIN_ROOT` elsewhere in the package.
+Socket.IO namespace. The concrete fields each transport type accepts are
+explained on [Static transport](./transport-static) and [Proxy
+transport](./transport-proxy). A static transport's `source` is a path
+relative to the package's extracted `Content` directory — the same root
+referenced by `$PLUGIN_ROOT` elsewhere in the package.
+
+## Access policies
+
+A manifest route carries an `access` policy the same way any other HTTP
+route does — see [Access control](../kernel/config-access) for the policy
+model itself. Add `require_auth` to require a signed-in user for the whole
+site:
+
+```yaml
+version: 1
+
+transports:
+  - id: assets
+    type: static
+    source: public
+
+routes:
+  - id: site
+    transport: assets
+    http:
+      method: GET
+      pattern: /
+      access:
+        require_auth: true
+```
+
+A manifest can declare more than one route against the same transport, and
+each route has its own `access`. For example, add a second, more restrictive
+route over the same `assets` source for an admin-only section:
+
+```yaml
+routes:
+  - id: admin-site
+    transport: assets
+    http:
+      method: GET
+      pattern: /admin/
+      access:
+        groups:
+          - administrators
+          - operators
+```
+
+An empty or omitted `access` leaves the route public, subject to whatever
+service-wide `Allow` is configured for the service — see [Service
+configuration](../kernel/config-services). Beyond that, `access` follows the
+same `require_auth` / `groups` shape described in [Access
+control](../kernel/config-access), whether the route belongs to a `static`
+service or one registered at runtime by a `wasm` or `grpc` service.
+
+## Proxy in a static service
 
 A `manifest.yaml` route is not limited to the `static` transport type. A
 `proxy` transport with a `unix` or `tcp` target can also be declared here,
@@ -78,6 +131,31 @@ somewhere else — there is no process for the Kernel to start, so nothing
 needs to be inherited. An `inherited` proxy target only makes sense for a
 `grpc` service that the Kernel is starting, so it does not apply to a static
 service.
+
+For example, a static service that only forwards everything to an
+already-running backend on the same host:
+
+```yaml
+version: 1
+transports:
+  - id: upstream
+    type: proxy
+    proxy:
+      network: tcp
+      address: 127.0.0.1:8181
+      scheme: http
+routes:
+  - id: root
+    transport: upstream
+    http:
+      pattern: /
+```
+
+See [Proxy transport](./transport-proxy) for what `network`, `address`, and
+`scheme` mean, which network kinds are available, and what the Kernel does
+with headers and access checks before forwarding a request — this manifest
+form is just the static-service way of registering the same proxy transport
+a `grpc` service would register at runtime.
 
 ## How loading differs from `wasm` and `grpc`
 

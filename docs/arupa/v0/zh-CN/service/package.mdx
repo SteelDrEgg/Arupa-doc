@@ -1,0 +1,166 @@
+---
+title: "服务包"
+description: "构建并组织由 Arupa 内核加载的 .plg 包。"
+---
+
+`.plg` 文件是 Arupa 服务的分发格式，无论其运行时类型是什么。它是一个 ZIP 归档文件，包含服务清单以及该服务在运行时所需的文件。内核会扫描扩展名为 `.plg` 的文件，读取其清单，并在服务启动时将该包解压到已配置的临时目录中。
+
+## 包结构
+
+一个有效的包在归档根目录下有 `info.yaml`，以及一个 `Content` 目录：
+
+```text
+my-service.plg
+├── info.yaml
+└── Content/
+    ├── my-service.wasm
+    ├── pages/
+    │   └── index.html
+    └── assets/
+        └── app.js
+```
+
+`Content` 是该服务的运行时根目录。内核通过 `info.yaml` 以及各类资源声明中的 `$PLUGIN_ROOT` 占位符，暴露其解压后的路径。服务应将其可执行文件、WASM 模块以及所有静态资源都放在该目录下。
+
+包中必须同时包含 `info.yaml` 和 `Content/`。无法作为 ZIP 归档读取、没有根级清单，或者没有内容目录的包，都无法被加载。
+
+## `info.yaml`
+
+该清单标识服务身份，并告诉内核如何启动它：
+
+```yaml
+Name: my-service
+Version: 1.0.0
+Type: wasm
+ContractVersion: 2
+Command: $PLUGIN_ROOT/my-service.wasm
+DisplayName: My Service
+
+# 可选元数据
+Category: application
+Entry: /my-service/pages/index.html
+```
+
+必需字段包括：
+
+| 字段 | 说明 |
+| --- | --- |
+| `Name` | 唯一的服务名称。对于 `wasm` 和 `grpc` 服务，该值也必须由服务的注册响应返回。 |
+| `Version` | 服务版本。对于 `wasm` 和 `grpc` 服务，它必须与注册期间返回的版本一致。 |
+| `Type` | 运行时类型：`wasm`、`grpc` 或 `static`。 |
+| `ContractVersion` | 该服务所使用的服务协议版本。 |
+| `Command` | 要加载的可执行文件或 WASM 模块。`wasm` 和 `grpc` 必填；`static` 不使用该字段。`$PLUGIN_ROOT` 会被替换为解压后的 `Content` 路径。 |
+
+其他字段会被保留为服务元数据。它们可以被内核的服务管理功能或应用 UI 使用，但不能替代上述必需的运行时字段。
+
+### 运行时类型与命令
+
+对于 WASM 服务，将 `Type` 设置为 `wasm`，并让 `Command` 指向 `Content` 中的模块：
+
+```yaml
+Type: wasm
+Command: $PLUGIN_ROOT/my-service.wasm
+```
+
+对于 gRPC 服务，将 `Type` 设置为 `grpc`，并让 `Command` 指向 `Content` 中的可执行文件：
+
+```yaml
+Type: grpc
+Command: $PLUGIN_ROOT/my-service
+```
+
+内核启动 gRPC 可执行文件时，会将其工作目录设置为 `$PLUGIN_ROOT`，并提供 `PLUGIN_ROOT` 环境变量。这样该可执行文件就可以定位资源，而不必依赖内核选择的临时解压路径。
+
+对于 static 服务，将 `Type` 设置为 `static` 并省略 `Command`——没有需要启动的可执行文件或模块。static 服务会直接在包级别的 `manifest.yaml` 中声明自己的传输和路由。清单格式以及何时应选用这种运行时类型，请参阅 [Static 服务](./static-service)。
+
+## 构建与打包
+
+按以下顺序构建服务并组装包。这些步骤描述的是 `wasm` 或 `grpc` 服务；对于 `static` 服务，跳过编译步骤，改为添加 `manifest.yaml` 而不是运行时产物——参阅 [Static 服务](./static-service)。
+
+### 1. 编译服务
+
+针对所选运行时编译服务。结果是一个运行时产物：`wasm` 服务对应一个 WASM 模块，`grpc` 服务对应一个可执行文件。保留好该产物，以便将其复制到包的 `Content/` 目录中。
+
+### 2. 创建包目录
+
+为该包创建一个临时目录。`info.yaml` 和 `Content/` 必须直接位于该目录之下：
+
+```sh
+mkdir -p build/my-service/Content
+```
+
+该目录将成为 ZIP 归档的根目录。创建归档时，不要在其外面再包一层目录。
+
+### 3. 创建 `info.yaml`
+
+在包根目录创建 `info.yaml`。使用 `$PLUGIN_ROOT` 将 `Command` 设置为该产物相对于 `Content/` 的路径：
+
+```yaml
+Name: my-service
+Version: 1.0.0
+Type: wasm
+ContractVersion: 2
+Command: $PLUGIN_ROOT/my-service.wasm
+```
+
+将该文件复制到暂存目录：
+
+```sh
+cp info.yaml build/my-service/info.yaml
+```
+
+对于 gRPC 产物，将 `Type` 设置为 `grpc`，并让 `Command` 指向可执行文件，例如 `Command: $PLUGIN_ROOT/my-service`。
+
+### 4. 放置运行时产物和静态资源
+
+将编译好的产物复制到 `Content/` 中。其位置必须与 `info.yaml` 一致：
+
+```sh
+cp build/my-service.wasm build/my-service/Content/my-service.wasm
+```
+
+将该服务所需的任何静态资源放在同一目录下：
+
+```sh
+cp -R pages build/my-service/Content/pages
+cp -R assets build/my-service/Content/assets
+```
+
+最终的暂存目录结构应如下所示：
+
+```text
+build/my-service/
+├── info.yaml
+└── Content/
+    ├── my-service.wasm
+    ├── pages/
+    │   └── index.html
+    └── assets/
+        └── app.js
+```
+
+### 5. 创建 ZIP 归档
+
+从暂存目录内部创建归档文件，这样可以让 `info.yaml` 和 `Content/` 位于归档根目录：
+
+```sh
+mkdir -p services
+cd build/my-service
+zip -qr ../../services/my-service.plg .
+```
+
+生成的 `services/my-service.plg` 就可以放入内核已配置的 `ServiceDir` 中了。扫描该目录或重启内核即可发现该包。
+
+## 加载一个包
+
+内核处理包的流程如下：
+
+1. 扫描 `ServiceDir` 中的 `.plg` 文件；
+2. 读取并校验每个包的 `info.yaml`；
+3. 将所选的包解压到 `ServiceTempDir` 中；
+4. 对于 `wasm` 和 `grpc`，按 `Type` 和 `Command` 描述启动运行时，然后执行该服务的身份握手；对于 `static`，直接读取 `manifest.yaml`；以及
+5. 连接该服务声明的传输和路由。
+
+在这个连接步骤成功之前，该包不会被视为加载成功。对于 `wasm` 和 `grpc`，握手期间返回的 `Name` 和 `Version` 必须与 `info.yaml` 中的值一致，否则内核会拒绝该包。
+
+关于启动行为、运行时参数，以及 `grpc` 服务的执行用户，请参阅[服务配置](../kernel/config-services)。

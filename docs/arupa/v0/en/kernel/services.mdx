@@ -15,8 +15,8 @@ a service:
 1. Place its `.plg` package in the configured `ServiceDir`.
 2. Make sure the Kernel can write to `ServiceTempDir`, which it uses while
    loading service packages.
-3. Scan the directory through the API, or restart Arupa so it scans the
-   directory during startup.
+3. Scan the directory by calling `GET /api/services/discovered`, or restart
+   Arupa so it scans the directory during startup.
 4. Start the service if its effective `Restart` setting does not enable
    automatic startup.
 
@@ -42,19 +42,118 @@ All service management endpoints are under `/api/services` and require an
 authenticated user. They return the standard JSON response shape used by
 Arupa: `success`, `message`, and `data`.
 
-### List service state
+### List discovered services
 
 ```http
-GET /api/services
+GET /api/services/discovered
 ```
 
 This endpoint scans the configured `ServiceDir` before returning the result,
 so the list always reflects the current contents of that directory; there is
-no separate scan endpoint. The response includes the configured
-`service_dir` and `service_temp_dir`, a `discovered` list, and a `running`
-list. Discovered entries include package metadata, effective configuration,
-and lifecycle status. Running entries include the routes and transports
-registered by each running service.
+no separate scan endpoint. The response is a `services` list, keyed by
+service name, where each entry combines package metadata with the effective
+configuration and current lifecycle status.
+
+By default, each entry omits two fields that can be large: package
+`metadata` and configuration `params`. Add either or both with an `include`
+query parameter, given as a comma-separated list, repeated, or both:
+
+```http
+GET /api/services/discovered?include=metadata,params
+GET /api/services/discovered?include=metadata&include=params
+```
+
+`metadata` and `params` are the only supported values. Anything else fails
+with `400 Bad Request`.
+
+For example, with `include=metadata`:
+
+```json
+{
+  "success": true,
+  "message": "Discovered services fetched",
+  "data": {
+    "services": [
+      {
+        "name": "login",
+        "version": "0.2.0",
+        "type": "static",
+        "contract_version": 2,
+        "command": "",
+        "package_path": "services/login.plg",
+        "config": {
+          "restart": "always"
+        },
+        "metadata": {
+          "Category": "core",
+          "DisplayName": "Login Pages"
+        },
+        "status": "running"
+      }
+    ]
+  }
+}
+```
+
+This is a `static` service, so `command` is empty and there is nothing to
+run. `config` shows the effective configuration merged from
+`[Services.default]` and `[Services.<name>]` — here only `restart` is
+non-default, so the other fields are omitted. `config.params` is withheld
+even from this response unless `include=params` is added, unlike the rest of
+`config`: params can be arbitrarily large or hold values such as secrets
+pulled in through `env://` references, so the endpoint never returns them by
+default.
+
+### List running services
+
+```http
+GET /api/services/running
+```
+
+Unlike the discovered list, this endpoint does not scan `ServiceDir` — it
+returns the Kernel's live registry directly, so it only shows what is
+actually running even if the directory currently holds packages that were
+never started. There is no `include` parameter: a running entry always shows
+its full detail, including the routes and transports it registered.
+
+```json
+{
+  "success": true,
+  "message": "Running services fetched",
+  "data": {
+    "services": [
+      {
+        "instance_id": "login",
+        "name": "login",
+        "version": "0.2.0",
+        "type": "static",
+        "path": "services/login.plg",
+        "transports": [
+          {
+            "id": "login-pages",
+            "type": "static",
+            "source": "build/"
+          }
+        ],
+        "routes": [
+          {
+            "id": "login-pages",
+            "transport": "login-pages",
+            "http": {
+              "pattern": "/pages/",
+              "access": {}
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Entries are keyed by `instance_id`, and this is the same projection described
+in [Routes and transports](../service/routing). An empty `access: {}` is a
+public policy, per [Access control](./config-access).
 
 ### Start, stop, or restart a service
 
@@ -76,7 +175,18 @@ Content-Type: application/json
   for that service name.
 
 The `name` field is required. These actions do not accept a package path; the
-service must already be present in the scan results.
+service must already be present in the scan results. Each action's response
+echoes the name back, for example:
+
+```json
+{
+  "success": true,
+  "message": "Service started",
+  "data": {
+    "name": "hello"
+  }
+}
+```
 
 A `static` service has no process to start or stop in the operating-system
 sense, but it still goes through the same lifecycle: starting it registers
@@ -88,7 +198,18 @@ its declared transports and routes, and stopping it removes them.
 GET /api/services/config
 ```
 
-The response returns the current `service_dir` and `service_temp_dir`.
+The response returns the current `service_dir` and `service_temp_dir`:
+
+```json
+{
+  "success": true,
+  "message": "Service config fetched",
+  "data": {
+    "service_dir": "services",
+    "service_temp_dir": "tmp"
+  }
+}
+```
 
 ### Update service directory configuration
 
@@ -98,16 +219,48 @@ Content-Type: application/json
 
 {
   "service_dir": "services",
-  "service_temp_dir": "tmp"
+  "service_temp_dir": "tmp2"
 }
 ```
 
 Both fields are required. The API creates the directories before saving the
-configuration, updates the manager, and scans the new service directory.
+configuration, updates the manager, and scans the new service directory. The
+response reports what actually changed:
 
-Changing `service_dir` takes effect for scanning immediately. Changing
-`service_temp_dir` is reported with `temp_dir_requires_restart: true` because
-the service manager initializes its extraction directory when it starts.
+```json
+{
+  "success": true,
+  "message": "Service config updated",
+  "data": {
+    "service_dir": "services",
+    "service_temp_dir": "tmp2",
+    "temp_dir_requires_restart": true,
+    "temp_dir_restart_reason": "running services keep their current extraction directory",
+    "discovered_service_count": 5,
+    "scan_path_effective_immediately": true
+  }
+}
+```
+
+`scan_path_effective_immediately` is always `true`: the scan that already ran
+as part of this request used the new `service_dir`, and
+`discovered_service_count` is how many packages that scan found — so the
+response tells you the outcome of the rescan, not just that one was
+scheduled.
+
+`temp_dir_requires_restart` reflects a real limitation rather than the
+Kernel's convenience: the service manager only reads `ServiceTempDir` once,
+when it starts, so changing it here updates the value future Kernel starts
+will use, but a currently running Kernel keeps extracting packages into the
+old directory until it is restarted. This field is `true` only when the
+submitted `service_temp_dir` actually differs from the previous value — for
+example, sending the same request again with `service_temp_dir` unchanged
+returns `temp_dir_requires_restart: false`, since nothing needs a restart to
+take effect. `service_dir` has no equivalent flag because scanning always
+reads it fresh on the next scan, which this same request already triggered.
+`temp_dir_restart_reason` is a human-readable string with the same
+explanation, meant for surfacing directly in a UI without hardcoding the
+wording there.
 
 ## Authentication and access
 

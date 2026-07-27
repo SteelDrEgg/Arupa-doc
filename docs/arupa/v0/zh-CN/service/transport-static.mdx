@@ -1,0 +1,115 @@
+---
+title: "Static"
+description: "通过内核提供服务包中的文件。"
+---
+
+Static 允许服务直接通过内核的 HTTP 服务器暴露其包中的文件，而无需服务代码处理每个请求。适用于页面、样式表、脚本、图片等不需要按请求计算的文件。
+
+服务先注册一个 static 传输，指定要提供的文件或目录，再注册一个或多个绑定到该传输 id 的 HTTP 路由。注册成功后，内核会直接从声明的来源提供匹配请求的内容。该请求不需要跨越服务进程或 WASM 边界。
+
+## 注册一个 static 传输
+
+一个 static 传输包含：
+
+| 属性 | 含义 |
+| --- | --- |
+| `id` | 供路由绑定该传输时使用的标识符。 |
+| `source` | 要提供的文件或目录。使用 `$PLUGIN_ROOT` 引用服务包中解压出的 `Content` 目录。 |
+
+```text
+id:     assets
+source: $PLUGIN_ROOT/assets
+```
+
+内核加载该服务时，该文件或目录必须存在。将资源打包在 `Content/` 下，并通过 `$PLUGIN_ROOT` 引用它：
+
+```text
+my-service.plg
+├── info.yaml
+└── Content/
+    └── assets/
+        ├── app.js
+        └── app.css
+```
+
+## 绑定一条路由
+
+绑定到 static 传输的路由携带 URL 模式和访问策略：
+
+| 属性 | 含义 |
+| --- | --- |
+| `transport` | 该 static 传输的 `id`。 |
+| `pattern` | 该资源可用的 URL 路径。 |
+| `access` | 该路由的可选访问策略。 |
+
+```text
+transport: assets
+pattern:   /my-service/assets/
+access:    public
+```
+
+static 路由只接受 `GET`，或者完全不指定方法——为 static 路由声明其他任何具体方法都会被拒绝。关于路由和传输之间的一般关系，请参阅[路由与传输](./routing)。
+
+## 挂载一个目录
+
+当传输的 `source` 是一个目录时，其路由的 `pattern` 必须以 `/` 结尾：
+
+```text
+source:  $PLUGIN_ROOT/assets
+pattern: /my-service/assets/
+```
+
+该模式映射到该目录子树。例如：
+
+```text
+/my-service/assets/app.js  →  Content/assets/app.js
+/my-service/assets/app.css →  Content/assets/app.css
+```
+
+不带尾部斜杠的 `/my-service/assets` 是另一个不同的精确路径；如果您需要在该路径上做重定向或返回索引页响应，请通过另一个传输添加单独的 HTTP 路由。
+
+## 挂载单个文件
+
+当传输的 `source` 是单个文件时，其路由的 `pattern` 不能以 `/` 结尾：
+
+```text
+source:  $PLUGIN_ROOT/pages/index.html
+pattern: /my-service/index.html
+```
+
+只有该精确路径会被提供服务。对 `/my-service/index.html/anything` 的请求不会匹配此路由。
+
+如果模式末尾的斜杠与 `source` 是文件还是目录不一致，内核会拒绝该注册，因此这类不匹配会在注册时就被捕获，而不会以运行时 404 的形式出现。
+
+## URL 路径规则
+
+static 路由的模式遵循内核共享的路径模式规则：
+
+- 模式必须是以 `/` 开头的绝对路径；
+- 不带尾部斜杠 `/` 的模式匹配单个精确路径（对应单文件来源）；
+- 以 `/` 结尾的模式匹配该路径子树（对应目录来源）；并且
+- `/*` 不是一种通配符形式，会被拒绝。
+
+对于以目录为来源的 static 路由，根模式 `/` 会被当作子树处理，可以匹配所有绝对请求路径。除非该服务本就打算提供应用程序的通用静态内容，否则请避免声明根路径。
+
+## 访问控制
+
+在内核提供该文件之前，会先应用路由的 `access` 策略。请求还必须满足为该服务配置的服务级访问策略。如果任一策略拒绝该请求，文件都不会被提供。关于策略模型，请参阅[访问控制](../kernel/config-access)。
+
+## 冲突与匹配
+
+static 路由与服务的其他 HTTP 路由共享同一片应用 URL 空间，无论这些路由背后是哪种传输。请保持每个服务的模式唯一。当另一个服务已经拥有相同路径时，内核会拒绝该路由；并且 static 路由与非 static 路由在同一路径上总是会发生冲突——一个路径要么作为静态内容提供，要么被动态处理，不能两者兼具。完整的冲突规则请参阅[路由与传输](./routing)。
+
+当多条路由都可以匹配某个请求时，匹配最长的模式胜出。当 static 路由与被动态处理的路由匹配长度相同时，static 路由同样会胜出。请选择具体明确的模式，以避免某个 URL 的归属出人意料。
+
+## 打包检查清单
+
+加载该服务之前，请确认：
+
+- 每个 static 传输的 `source` 都位于包的 `Content/` 目录树内；
+- `source` 的值使用 `$PLUGIN_ROOT`，而不是构建机器上的本地路径；
+- 以目录为来源的路由，其模式以 `/` 结尾；
+- 以文件为来源的路由，其模式不以 `/` 结尾；并且
+- 包中包含这些传输所引用的全部文件。
+
+Static 适用于可以原样提供的文件。如果某个请求需要服务逻辑、请求数据或动态生成的响应，请改用 [HTTP 传输](./transport-http)。
