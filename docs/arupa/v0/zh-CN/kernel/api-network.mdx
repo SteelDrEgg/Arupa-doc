@@ -1,0 +1,50 @@
+---
+title: "网络设置"
+description: "通过 HTTP 管理 Arupa 的监听地址和 TLS 设置。"
+---
+
+Network 能力管理[内核](./config-kernel)中描述的顶层字段 `Listen` 和 `TLS`。本页的所有接口都要求 `Network` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。
+
+## 监听地址
+
+```http
+GET /api/network/listen
+PATCH /api/network/listen
+Content-Type: application/json
+
+{"listen":"127.0.0.1:8080"}
+```
+
+`GET` 返回当前配置的地址。`PATCH` 要求提供 `listen`，并将其写入顶层的 `Listen` 字段。
+
+```json
+{
+  "success": true,
+  "message": "Listen address updated",
+  "data": { "listen": "127.0.0.1:8080", "requires_restart": true }
+}
+```
+
+## TLS
+
+```http
+GET /api/network/tls
+PATCH /api/network/tls
+Content-Type: application/json
+
+{"tls":true}
+```
+
+`GET` 返回当前配置的设置。`PATCH` 要求提供 `tls`，且不能发送 `null`；它会把该值写入顶层的 `TLS` 字段。
+
+```json
+{
+  "success": true,
+  "message": "TLS setting updated",
+  "data": { "tls": true, "requires_restart": true }
+}
+```
+
+## requires_restart
+
+内核只在启动时根据当时的 `Listen` 和 `TLS` 绑定一次监听器，并在启用时构建一次自签名 TLS 证书——启用 `TLS` 具体做了什么，请参阅[内核](./config-kernel)。这两个接口都会把配置值与运行进程实际生效的值进行比较，并把差异报告为 `requires_restart`。这个字段在单纯的 `GET` 上也会出现，不仅仅是紧跟在 `PATCH` 之后。一旦配置值重新与生效值一致，它就会变回 `false`，无论这是因为重启了内核，还是因为又把原来的值写了回去。

@@ -1,0 +1,78 @@
+---
+title: "组"
+description: "通过 HTTP 管理 Arupa 组。"
+---
+
+Group 能力管理 `Groups` 表中的条目——也就是 Arupa 中每一条访问策略都会引用的组成员列表，从 `Route.Allow` 到服务自己的 `Allow` 皆是如此。本页的所有接口都要求 `Group` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。
+
+## 列出组
+
+```http
+GET /api/group
+```
+
+返回每个已配置的组及其成员，按名称排序。
+
+```json
+{
+  "success": true,
+  "message": "Groups fetched",
+  "data": {
+    "groups": [
+      { "name": "administrators", "users": ["alice"] },
+      { "name": "operators", "users": ["alice", "bob"] }
+    ]
+  }
+}
+```
+
+## 获取单个组
+
+```http
+GET /api/group/{name}
+```
+
+返回单个组，格式与 `GET /api/group` 相同；如果不存在该名称的组，返回 `404 Not Found`。
+
+```json
+{
+  "success": true,
+  "message": "Group fetched",
+  "data": { "name": "operators", "users": ["alice", "bob"] }
+}
+```
+
+## 替换组成员
+
+```http
+PUT /api/group/{name}
+Content-Type: application/json
+
+{"users":["alice","bob"]}
+```
+
+`users` 是必需的，且不能为 `null`；它会原子地替换整个成员列表。这是修改成员身份的唯一方式——没有单独添加或移除某一个成员的接口，因此如果调用者只想添加一个用户，就必须先读取当前列表，再把新名字附加进去后一并发送回去。发送空列表（`"users":[]`）是合法的，这会让组变成没有成员，而不是删除该组。如果 `{name}` 还不是一个已配置的组，这个调用会创建它。
+
+```json
+{
+  "success": true,
+  "message": "Group updated",
+  "data": { "name": "operators", "users": ["alice", "bob"] }
+}
+```
+
+## 删除组
+
+```http
+DELETE /api/group/{name}
+```
+
+从 `Groups` 中移除该组的条目。任何引用了这个被删除组名的 `Route.Allow`、服务 `Allow` 或路由 `Access` 策略，只是不会再匹配到这个组名而已——删除一个组并不会移除配置中其他地方对它的引用。
+
+```json
+{
+  "success": true,
+  "message": "Group deleted",
+  "data": { "name": "operators" }
+}
+```

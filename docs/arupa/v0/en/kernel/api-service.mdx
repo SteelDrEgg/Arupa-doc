@@ -1,0 +1,305 @@
+---
+title: "Service management"
+description: "Manage Arupa services over HTTP."
+---
+
+The Service capability manages everything about the service lifecycle:
+discovering packages, starting and stopping them, and reading or writing
+their configuration. All endpoints on this page require the `Service`
+capability to be enabled; see [Management API](./api) for how
+capabilities work. For what a service package is and how the Kernel
+scans `ServiceDir`, see [Services](./services).
+
+## Discover and inspect services
+
+### List discovered services
+
+```http
+GET /api/service/discovered
+```
+
+Scans the configured `ServiceDir` before returning the result, so the list
+always reflects the current contents of that directory. The response is a
+`services` list, keyed by service name, where each entry combines package
+metadata with the effective configuration and current lifecycle status.
+
+By default, each entry omits two fields that can be large: package
+`metadata` and configuration `params`. Add either or both with an
+`include` query parameter, given as a comma-separated list, repeated, or
+both:
+
+```http
+GET /api/service/discovered?include=metadata,params
+GET /api/service/discovered?include=metadata&include=params
+```
+
+`metadata` and `params` are the only supported values; anything else fails
+with `400 Bad Request`.
+
+```json
+{
+  "success": true,
+  "message": "Discovered services fetched",
+  "data": {
+    "services": [
+      {
+        "name": "login",
+        "version": "0.2.0",
+        "type": "static",
+        "contract_version": 2,
+        "command": "",
+        "package_path": "services/login.plg",
+        "config": { "restart": "always" },
+        "metadata": { "Category": "core", "DisplayName": "Login Pages" },
+        "status": "running"
+      }
+    ]
+  }
+}
+```
+
+`config` shows the effective configuration merged from
+`[Services.default]` and `[Services.<name>]`. `config.params` is withheld
+even when `include=metadata` is present — it's only returned when
+`include=params` is added, unlike the rest of `config`, because params
+can be arbitrarily large or hold values such as secrets pulled in through
+`env://` references.
+
+### List running services
+
+```http
+GET /api/service/running
+```
+
+Unlike the discovered list, this endpoint does not scan `ServiceDir` — it
+returns the Kernel's live registry directly, so it only shows what is
+actually running even if the directory currently holds packages that were
+never started. There is no `include` parameter: a running entry always
+shows its full detail, including the routes and transports it registered.
+Entries are keyed by `instance_id`, the same projection described in
+[Routes and transports](../service/routing).
+
+```json
+{
+  "success": true,
+  "message": "Running services fetched",
+  "data": {
+    "services": [
+      {
+        "instance_id": "login",
+        "name": "login",
+        "version": "0.2.0",
+        "type": "static",
+        "path": "services/login.plg",
+        "transports": [
+          { "id": "login-pages", "type": "static", "source": "build/" }
+        ],
+        "routes": [
+          {
+            "id": "login-pages",
+            "transport": "login-pages",
+            "http": { "pattern": "/pages/", "access": {} }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Get one discovered service
+
+```http
+GET /api/service/detail/{name}
+```
+
+Scans `ServiceDir` the same way `GET /api/service/discovered` does and
+returns the single entry named `{name}`, or `404 Not Found` if no
+discovered service has that name. It accepts the same `include` query
+parameter as the discovered list.
+
+```json
+{
+  "success": true,
+  "message": "Service fetched",
+  "data": {
+    "name": "login",
+    "version": "0.2.0",
+    "type": "static",
+    "contract_version": 2,
+    "command": "",
+    "package_path": "services/login.plg",
+    "config": { "restart": "always" },
+    "status": "running"
+  }
+}
+```
+
+## Start, stop, or restart a service
+
+```http
+POST /api/service/start/{name}
+POST /api/service/stop/{name}
+POST /api/service/restart/{name}
+```
+
+The service name is part of the path; none of these three take a request
+body. Each action's response echoes the name back:
+
+```json
+{
+  "success": true,
+  "message": "Service started",
+  "data": { "name": "login" }
+}
+```
+
+- `start` starts a previously scanned service by name.
+- `stop` unloads a running service and removes its live host bindings,
+  including every transport and route it registered.
+- `restart` stops the running instance, then loads the latest scanned
+  package for that service name.
+
+These actions do not accept a package path; the service must already be
+present in the scan results, so call `GET /api/service/discovered` (or
+`GET /api/service/detail/{name}`) first if you're not sure a package has
+been picked up yet. A `static` service has no process to start or stop in
+the operating-system sense, but it still goes through the same lifecycle:
+starting it registers its declared transports and routes, and stopping it
+removes them.
+
+## Service directory location
+
+### Read or change the scanned directory
+
+```http
+GET /api/service/dir
+PATCH /api/service/dir
+Content-Type: application/json
+
+{"service_dir":"services"}
+```
+
+`GET` returns the current `service_dir`. `PATCH` creates the directory if
+it doesn't exist, persists the new path, and immediately rescans it —
+there's no separate scan endpoint, and `GET /api/service/discovered`
+always scans on every call anyway. The response reports how many packages
+that scan found:
+
+```json
+{
+  "success": true,
+  "message": "Service directory updated",
+  "data": { "service_dir": "services", "discovered_service_count": 5 }
+}
+```
+
+Changing `service_dir` never requires a restart: every discovery call
+reads it fresh, and this request already triggered a rescan against the
+new path.
+
+### Read or change the temp directory
+
+```http
+GET /api/service/temp-dir
+PATCH /api/service/temp-dir
+Content-Type: application/json
+
+{"temp_dir":"tmp2"}
+```
+
+`ServiceTempDir` is where the Kernel extracts packages while loading
+them. Unlike `service_dir`, it's only read once, when the service manager
+starts, so changing it here updates the value a future Kernel start will
+use, but a currently running Kernel keeps extracting packages into the old
+directory until it's restarted. Both `GET` and `PATCH` report this with a
+`requires_restart` boolean:
+
+```json
+{
+  "success": true,
+  "message": "Service temporary directory updated",
+  "data": { "temp_dir": "tmp2", "requires_restart": true }
+}
+```
+
+`requires_restart` is `true` whenever the configured `temp_dir` differs
+from the one the running process actually applied at startup — including
+on a plain `GET`, not just right after a `PATCH`. Sending the same value
+again, or restarting the Kernel, brings it back to `false`.
+
+## Per-service configuration
+
+### Read, update, or reset a service's config
+
+```http
+GET /api/service/config/{name}
+PATCH /api/service/config/{name}
+DELETE /api/service/config/{name}
+```
+
+These manage the `[Services.<name>]` table described in
+[Service configuration](./config-services) — `Restart`, `RunAsUser`,
+`Checksum`, and `Allow` — independently of whether `{name}` currently
+matches a discovered or running service. `GET` reports whether the name
+has an explicit entry at all:
+
+```json
+{
+  "success": true,
+  "message": "Service config fetched",
+  "data": {
+    "name": "login",
+    "configured": true,
+    "restart": "always",
+    "allow": null
+  }
+}
+```
+
+If `{name}` has no entry in `Services`, the response is just
+`{"name": "login", "configured": false, "allow": null}` — the service
+still runs with `[Services.default]`, this simply confirms there's no
+override.
+
+`PATCH` takes a partial object; every field is optional, but at least one
+must be present:
+
+```json
+{"restart": "always", "allow": ["staff"]}
+```
+
+Each field has three possible states in the request: omitted (leave
+unchanged), explicit `null` or an empty string (clear the override and
+fall back to `[Services.default]` for that field), or a value (set it).
+`allow` follows the same present/null/value rule, except an explicit empty
+list (`"allow":[]`) is a value, not a clear — it sets the service's `Allow`
+to an empty list, which is a public policy at that layer, rather than
+removing the override. `DELETE` removes the entire `[Services.<name>]`
+entry, including its `Params`, resetting the service fully to the default
+configuration.
+
+## Per-service parameters
+
+```http
+GET /api/service/params/{name}
+PATCH /api/service/params/{name}
+Content-Type: application/json
+
+{"set":{"greeting":"hi"},"remove":["old_key"]}
+```
+
+Manages `[Services.<name>.Params]`, the arbitrary key/value strings passed
+to a service at registration. `GET` returns the current map, which is
+`null` if nothing has been set. `PATCH` applies `set` and `remove`
+together as one update; at least one of them must be non-empty. Both
+calls work independently of `{name}` matching a discovered service, the
+same as the config endpoints above.
+
+```json
+{
+  "success": true,
+  "message": "Service params updated",
+  "data": { "name": "login", "params": { "greeting": "hi" } }
+}
+```

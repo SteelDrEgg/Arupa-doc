@@ -28,7 +28,20 @@
           ]
         },
         "docs/arupa/v0/zh-CN/kernel/services",
-        "docs/arupa/v0/zh-CN/kernel/route"
+        "docs/arupa/v0/zh-CN/kernel/route",
+        {
+          "group": "管理 API",
+          "root": "docs/arupa/v0/zh-CN/kernel/api",
+          "pages": [
+            "docs/arupa/v0/zh-CN/kernel/api-user",
+            "docs/arupa/v0/zh-CN/kernel/api-group",
+            "docs/arupa/v0/zh-CN/kernel/api-pages",
+            "docs/arupa/v0/zh-CN/kernel/api-access",
+            "docs/arupa/v0/zh-CN/kernel/api-service",
+            "docs/arupa/v0/zh-CN/kernel/api-log",
+            "docs/arupa/v0/zh-CN/kernel/api-network"
+          ]
+        }
       ]
     },
     {

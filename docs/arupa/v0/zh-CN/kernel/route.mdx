@@ -103,26 +103,30 @@ Arupa 使用同一套路径模式实现来处理内核访问规则和服务路�
 
 ## 保留路径
 
-在任何服务注册路由之前，内核会为自己保留一组固定的 HTTP 路径——登录相关的路径、它自己的服务管理 API，以及 Socket.IO 传输：
+在任何服务注册路由之前，内核会为自己保留一组固定的 HTTP 路径——登录相关的路径、整个[管理 API](./api)，以及 Socket.IO 传输：
 
 ```text
 /socket.io/
 /api/login
 /api/logout
 /api/check-auth
-/api/services/discovered
-/api/services/running
-/api/services/start
-/api/services/stop
-/api/services/restart
-/api/services/config
-/api/kernel/version
-/api/kernel/reload
+/api/user
+/api/user/
+/api/group
+/api/group/
+/api/page
+/api/page/
+/api/access
+/api/log/
+/api/network/
+/api/service
+/api/service/
+/api/kernel/
 ```
 
-这些保留使用的是与服务相同的路由器，因此服务无法注册一个与这些模式完全相同的 HTTP 路由；这种尝试的失败方式，与注册一个已被其他服务占用的路径完全一样。只有由内核直接实现的路径才会以这种方式被保留——其他一切，包括像登录这样的核心服务所提供的页面，都和其他任何服务路由一样，需要争夺路径的所有权。
+不带末尾斜杠的路径只保留这个精确路径本身，对应每个能力的集合级接口（`GET /api/user`、`GET /api/service` 等）。以 `/` 结尾的路径则把这个模式作为子树保留，覆盖其下按资源划分的嵌套接口（`/api/user/{name}`、`/api/service/config/{name}` 等）——这个模式的具体含义请参阅[子树](#子树)。这些保留使用的是与服务相同的路由器，因此服务无法注册一个与这些模式完全相同的 HTTP 路由；这种尝试的失败方式，与注册一个已被其他服务占用的路径完全一样。只有由内核直接实现的路径才会以这种方式被保留——其他一切，包括像登录这样的核心服务所提供的页面，都和其他任何服务路由一样，需要争夺路径的所有权。
 
-这份列表由内核定义，未来版本中可能会增加更多条目；请把它当作服务无法占用的一组路径，而不是一份固定不变的清单。
+一个能力被保留与它是否被启用没有关系。内核会在启动时无条件地占用这些路径，与 `[API]` 表无关，因此即使某个能力当前被关闭，服务也永远不可能注册到会与它的接口冲突的路由；启用/禁用状态本身是如何被强制执行的，请参阅[管理 API](./api)。
 
 ## 静态路由
 

@@ -1,0 +1,72 @@
+---
+title: "Pages"
+description: "Manage Arupa's browser redirect pages over HTTP."
+---
+
+The Pages capability manages the `Pages` table — the status-code-to-path
+mapping the Kernel uses to redirect browser requests, described in
+[Pages](./config-pages). All endpoints on this page require the `Pages`
+capability to be enabled; see [Management API](./api) for how
+capabilities work.
+
+## List pages
+
+```http
+GET /api/page
+```
+
+Returns every configured status-code-to-path mapping, sorted by status.
+
+```json
+{
+  "success": true,
+  "message": "Pages fetched",
+  "data": {
+    "pages": [
+      { "status": "401", "path": "/pages/login.html" },
+      { "status": "404", "path": "/pages/not-found.html" }
+    ]
+  }
+}
+```
+
+## Set a page
+
+```http
+PUT /api/page/{status}
+Content-Type: application/json
+
+{"path":"/pages/login.html"}
+```
+
+`{status}` must be an HTTP status code from `100` to `599`. `path` must be
+a local absolute path — it must start with `/` and must not start with
+`//`, which the Kernel rejects because it would be interpreted as a
+protocol-relative URL rather than a local path. This call sets the mapping
+whether or not `{status}` was previously configured.
+
+```json
+{
+  "success": true,
+  "message": "Page updated",
+  "data": { "status": "401", "path": "/pages/login.html" }
+}
+```
+
+## Delete a page
+
+```http
+DELETE /api/page/{status}
+```
+
+Removes the mapping for `{status}`. Requests that would have redirected
+using it fall back to the normal, non-redirected response described in
+[Pages](./config-pages).
+
+```json
+{
+  "success": true,
+  "message": "Page deleted",
+  "data": { "status": "401" }
+}
+```

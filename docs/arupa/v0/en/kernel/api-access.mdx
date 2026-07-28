@@ -1,0 +1,95 @@
+---
+title: "Access rules"
+description: "Manage Arupa's host access rules over HTTP."
+---
+
+The Access capability manages `Route.Allow` — the host-level access rules
+described in [Access control](./config-access). All endpoints on this page
+require the `Access` capability to be enabled; see
+[Management API](./api) for how capabilities work.
+
+## Method-qualified rules
+
+A rule normally applies to every HTTP method at a path, the same as writing
+`"/api/"` directly under `[Route.Allow]` in `config.toml`. This API can
+also scope a rule to one method by giving it separately from the path,
+which is written in configuration as a `METHOD:/path` key (for example,
+`"PUT:/api/user/"`). A method-qualified rule and a method-less rule at
+the same path are independent entries — setting one does not affect the
+other. When both match the same request, the more specific one wins: an
+exact method match beats a `GET` rule matching a `HEAD` request, which
+beats a method-less rule; this is only decided among rules that already
+share the longest matching path, per [Access control](./config-access).
+
+`groups` empty (`[]`) makes a rule effectively public rather than denying
+everyone — see [Denying access](./config-access#denying-access) for how to
+write a rule that actually rejects every request.
+
+## List access rules
+
+```http
+GET /api/access
+```
+
+Returns every configured rule, sorted by path and then by method.
+
+```json
+{
+  "success": true,
+  "message": "Access rules fetched",
+  "data": {
+    "rules": [
+      { "path": "/api/", "groups": ["staff"] },
+      { "method": "PUT", "path": "/api/user/", "groups": ["administrators"] }
+    ]
+  }
+}
+```
+
+`method` is omitted for a rule that applies to every method.
+
+## Set an access rule
+
+```http
+PUT /api/access
+Content-Type: application/json
+
+{"method":"PUT","path":"/api/user/","groups":["administrators"]}
+```
+
+`path` is required. `groups` is required and must not be `null`; an empty
+list (`"groups":[]`) is valid and makes the rule effectively public, per
+[Access control](./config-access) — an empty group list does not mean
+"deny all". `method` is optional; omit it to set a rule that applies to
+every HTTP method at `path`.
+
+```json
+{
+  "success": true,
+  "message": "Access rule updated",
+  "data": { "method": "PUT", "path": "/api/user/", "groups": ["administrators"] }
+}
+```
+
+## Delete an access rule
+
+```http
+DELETE /api/access
+Content-Type: application/json
+
+{"method":"PUT","path":"/api/user/"}
+```
+
+Deletes the rule that exactly matches `path` and `method` (or the
+method-less rule at `path`, if `method` is omitted). `groups` is ignored if
+present in the request body. Unlike the list and update responses, this
+response always includes `method`, as an empty string when the deleted
+rule was method-less:
+
+```json
+{
+  "success": true,
+  "message": "Access rule deleted",
+  "data": { "method": "PUT", "path": "/api/user/" }
+}
+```

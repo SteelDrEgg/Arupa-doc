@@ -1,0 +1,106 @@
+---
+title: "Management API"
+description: "Learn how Arupa exposes management capabilities over HTTP, and how to turn each one on or off."
+---
+
+Arupa can manage most of its own configuration over HTTP: users, groups,
+pages, host access rules, services, logging, and network settings. None of
+this is available by default. Each area is a separate **capability**, and a
+capability's endpoints do not exist for callers until it is explicitly
+enabled.
+
+## The `[API]` table
+
+Capabilities are controlled by the `[API]` table in `config.toml`:
+
+```toml
+[API]
+User    = true
+Group   = true
+Pages   = false
+Access  = false
+Service = true
+Log     = false
+Network = false
+```
+
+Each field is a boolean, one per capability, and every field defaults to
+`false` when omitted. A freshly installed Arupa exposes none of these
+endpoints — only session handling (`/api/login`, `/api/logout`,
+`/api/check-auth`) and the two Kernel information endpoints
+(`GET /api/kernel/version`, `POST /api/kernel/reload`) work out of the box,
+because those are not capability-gated.
+
+| Capability | `[API]` field | Covers |
+| --- | --- | --- |
+| User | `User` | [User accounts](./api-user) |
+| Group | `Group` | [Groups](./api-group) |
+| Pages | `Pages` | [Error pages](./api-pages) |
+| Access | `Access` | [Host access rules](./api-access) |
+| Service | `Service` | [Service management](./api-service) |
+| Log | `Log` | [Logging](./api-log) |
+| Network | `Network` | [Network settings](./api-network) |
+
+## Enabling a capability
+
+There is no HTTP endpoint for turning a capability on or off — doing so
+would let an already-authenticated caller unlock more of the API than an
+administrator intended. Enabling a capability means editing the `[API]`
+table in `config.toml` directly, the same way you would edit any other part
+of the configuration.
+
+The change takes effect on the next configuration reload. Send the Kernel
+process `SIGHUP`, or call `POST /api/kernel/reload`, to pick it up without
+a full restart — this endpoint is one of the two that are never
+capability-gated, so it always works even while every other capability is
+disabled.
+
+## How the gate works
+
+Every endpoint described on the pages in this section requires an
+authenticated request, exactly like any other management endpoint. On top
+of that, the Kernel checks whether the endpoint's capability is enabled
+before the handler runs:
+
+- if the capability is disabled, the request never reaches the handler and
+  the Kernel returns `404 Not Found`;
+- if the capability is enabled, the request proceeds to the normal
+  authentication and handler logic.
+
+A disabled capability responds identically to a path that doesn't exist.
+This is deliberate: it avoids confirming to an unauthenticated or
+under-privileged caller that a management surface is merely turned off
+rather than absent. Authentication is still checked first, so a request
+with no valid session receives the normal `401 Unauthorized` regardless of
+whether the target capability is enabled.
+
+Capability gating is independent from `Route.Allow` and any other access
+policy. A capability being enabled only means its endpoints exist; whether
+a particular authenticated user may call them is still decided by
+[Access control](./config-access).
+
+## Response shape
+
+Every endpoint in this section returns the same envelope used across
+Arupa's management API:
+
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": { ... }
+}
+```
+
+A failed request uses the same `success`/`message` fields with `success:
+false`, an appropriate HTTP status code, and no `data`.
+
+## Requires-restart fields
+
+Several endpoints report a `requires_restart` boolean in their response.
+This appears wherever a setting is read once at Kernel startup — the
+listen address, TLS, service temp directory, and log level/format all work
+this way. The value tells you whether the value you just wrote differs
+from what the running process actually applied, not whether the write
+itself succeeded. Each page below documents which of its fields behave
+this way.

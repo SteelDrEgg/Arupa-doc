@@ -1,0 +1,62 @@
+---
+title: "页面"
+description: "通过 HTTP 管理 Arupa 的浏览器重定向页面。"
+---
+
+Pages 能力管理 `Pages` 表——也就是内核用来重定向浏览器请求的状态码到路径的映射，详见[页面](./config-pages)。本页的所有接口都要求 `Pages` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。
+
+## 列出页面
+
+```http
+GET /api/page
+```
+
+返回每一条已配置的状态码到路径的映射，按状态码排序。
+
+```json
+{
+  "success": true,
+  "message": "Pages fetched",
+  "data": {
+    "pages": [
+      { "status": "401", "path": "/pages/login.html" },
+      { "status": "404", "path": "/pages/not-found.html" }
+    ]
+  }
+}
+```
+
+## 设置页面
+
+```http
+PUT /api/page/{status}
+Content-Type: application/json
+
+{"path":"/pages/login.html"}
+```
+
+`{status}` 必须是 `100` 到 `599` 之间的 HTTP 状态码。`path` 必须是本地绝对路径——必须以 `/` 开头，且不能以 `//` 开头，因为内核会把后者当作协议相对 URL 而拒绝，而不是本地路径。无论 `{status}` 之前是否已配置，这个调用都会设置该映射。
+
+```json
+{
+  "success": true,
+  "message": "Page updated",
+  "data": { "status": "401", "path": "/pages/login.html" }
+}
+```
+
+## 删除页面
+
+```http
+DELETE /api/page/{status}
+```
+
+移除 `{status}` 对应的映射。原本会通过该映射重定向的请求，会退回到[页面](./config-pages)中描述的正常、不重定向的响应。
+
+```json
+{
+  "success": true,
+  "message": "Page deleted",
+  "data": { "status": "401" }
+}
+```

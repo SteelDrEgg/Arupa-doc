@@ -28,7 +28,20 @@
           ]
         },
         "docs/arupa/v0/en/kernel/services",
-        "docs/arupa/v0/en/kernel/route"
+        "docs/arupa/v0/en/kernel/route",
+        {
+          "group": "Management API",
+          "root": "docs/arupa/v0/en/kernel/api",
+          "pages": [
+            "docs/arupa/v0/en/kernel/api-user",
+            "docs/arupa/v0/en/kernel/api-group",
+            "docs/arupa/v0/en/kernel/api-pages",
+            "docs/arupa/v0/en/kernel/api-access",
+            "docs/arupa/v0/en/kernel/api-service",
+            "docs/arupa/v0/en/kernel/api-log",
+            "docs/arupa/v0/en/kernel/api-network"
+          ]
+        }
       ]
     },
     {

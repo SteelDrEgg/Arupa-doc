@@ -1,0 +1,92 @@
+---
+title: "Groups"
+description: "Manage Arupa groups over HTTP."
+---
+
+The Group capability manages entries in the `Groups` table — the group
+membership lists referenced by every access policy in Arupa, from
+`Route.Allow` to a service's own `Allow`. All endpoints on this page
+require the `Group` capability to be enabled; see
+[Management API](./api) for how capabilities work.
+
+## List groups
+
+```http
+GET /api/group
+```
+
+Returns every configured group and its members, sorted by name.
+
+```json
+{
+  "success": true,
+  "message": "Groups fetched",
+  "data": {
+    "groups": [
+      { "name": "administrators", "users": ["alice"] },
+      { "name": "operators", "users": ["alice", "bob"] }
+    ]
+  }
+}
+```
+
+## Get a group
+
+```http
+GET /api/group/{name}
+```
+
+Returns a single group the same way `GET /api/group` does, or
+`404 Not Found` if no group with that name exists.
+
+```json
+{
+  "success": true,
+  "message": "Group fetched",
+  "data": { "name": "operators", "users": ["alice", "bob"] }
+}
+```
+
+## Replace a group's members
+
+```http
+PUT /api/group/{name}
+Content-Type: application/json
+
+{"users":["alice","bob"]}
+```
+
+`users` is required and must not be `null`; it replaces the group's entire
+member list atomically. This is the only way to change membership — there
+is no endpoint to add or remove a single member, so a caller that wants to
+add one user must first read the current list and send it back with the
+new name appended. Sending an empty list (`"users":[]`) is valid and
+leaves the group with no members rather than deleting it. If `{name}`
+isn't a configured group yet, this call creates it.
+
+```json
+{
+  "success": true,
+  "message": "Group updated",
+  "data": { "name": "operators", "users": ["alice", "bob"] }
+}
+```
+
+## Delete a group
+
+```http
+DELETE /api/group/{name}
+```
+
+Removes the group's entry from `Groups`. Any `Route.Allow`, service
+`Allow`, or route `Access` policy that names the deleted group simply
+never matches that group name again — deleting a group does not remove
+references to it elsewhere in the configuration.
+
+```json
+{
+  "success": true,
+  "message": "Group deleted",
+  "data": { "name": "operators" }
+}
+```

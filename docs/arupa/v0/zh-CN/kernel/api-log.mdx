@@ -1,0 +1,50 @@
+---
+title: "日志记录"
+description: "通过 HTTP 管理 Arupa 的日志级别和格式。"
+---
+
+Log 能力管理[日志记录](./config-logging)中描述的 `[Log]` 表——`Level` 和 `Format`。本页的所有接口都要求 `Log` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。
+
+## 日志级别
+
+```http
+GET /api/log/level
+PATCH /api/log/level
+Content-Type: application/json
+
+{"level":"debug"}
+```
+
+`GET` 返回当前配置的级别。`PATCH` 要求提供 `level`，并将其写入 `[Log].Level`。
+
+```json
+{
+  "success": true,
+  "message": "Log level updated",
+  "data": { "level": "debug", "requires_restart": true }
+}
+```
+
+## 日志格式
+
+```http
+GET /api/log/format
+PATCH /api/log/format
+Content-Type: application/json
+
+{"format":"text"}
+```
+
+`GET` 返回当前配置的格式。`PATCH` 要求提供 `format`，并将其写入 `[Log].Format`。
+
+```json
+{
+  "success": true,
+  "message": "Log format updated",
+  "data": { "format": "text", "requires_restart": true }
+}
+```
+
+## requires_restart
+
+内核的日志记录器只在启动时根据当时的 `[Log]` 内容构建一次。这两个接口都会把配置值与运行进程实际生效的值进行比较（不区分大小写），并把差异报告为 `requires_restart`。这个字段在单纯的 `GET` 上也会出现，不仅仅是紧跟在 `PATCH` 之后——如果有人直接编辑了 `config.toml` 并重新加载，`GET /api/log/level` 会在任何 API 调用改变任何东西之前，就已经报告 `requires_restart: true`。一旦配置值重新与生效值一致，它就会变回 `false`，无论这是因为重启了内核，还是因为又把原来的值写了回去。

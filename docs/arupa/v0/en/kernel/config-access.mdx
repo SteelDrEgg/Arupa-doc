@@ -73,6 +73,21 @@ The two rejection states are different:
 - An authenticated user who does not satisfy the group requirement is an
   authorization failure and produces `403 Forbidden`.
 
+### Denying access
+
+Because an empty `Groups` list is public, there's no way to write "deny
+everyone" by leaving `Groups` empty — an empty list and an absent policy
+behave the same way. To make a policy reject every request instead, name a
+group that has no members, for example `Groups = ["nobody"]`. Membership is
+determined entirely by the `Groups` table's own membership lists, so a
+group name is never validated against anything when it's used in a policy;
+`nobody` doesn't need an entry in `[Groups]` at all. An undefined group
+simply has no members, which no user can ever belong to, so this works as a
+deny-all placeholder without requiring any bookkeeping elsewhere in the
+configuration. This applies to every layer on this page — `Route.Allow`, a
+service's `Allow`, and a route's own `Access` policy all resolve group
+membership the same way.
+
 ## Host route access
 
 `Route.Allow` protects HTTP paths before the request reaches either a host
@@ -80,8 +95,9 @@ handler or a service handler:
 
 ```toml
 [Route.Allow]
-  "/api/services/start" = ["root"]
+  "/api/service/start/" = ["root"]
   "/api/admin/" = ["root"]
+  "GET:/api/list" = ["staff"]
 ```
 
 The map value is a list of groups. A request is allowed when the authenticated
@@ -91,14 +107,30 @@ The `Route.Allow` map uses the Kernel's shared path-pattern implementation. A
 normal path is an exact match, while a pattern ending in `/` matches that path
 subtree. The `/*` is not a valid configuration; it doesn't support wildcard.
 
-When multiple `Route.Allow` patterns match, the longest matching pattern wins.
-The Kernel does not combine groups from multiple matching patterns. See
-[Route](./route) for the complete path-pattern rules,
-root-path behavior, and validation details.
+A key can also be method-qualified by prefixing the path with an HTTP method
+and a colon, as in `"GET:/api/list"` above. A method-qualified rule only
+applies to requests using that method; a plain path with no `METHOD:` prefix
+applies to every method. A rule for `GET` also matches `HEAD` requests, since
+the two share caching semantics. The
+method must be an uppercase HTTP token — `"get:/api/list"` is invalid, and so
+is a colon with nothing in front of it, such as `":/api/list"`. Every key in
+`Route.Allow` is validated together: if any one of them is malformed, the
+whole update is rejected and none of the submitted changes are saved.
+
+When multiple `Route.Allow` patterns match a request, the longest matching
+path wins first. If more than one matching rule shares that same longest
+path — a method-qualified rule and a plain rule, or two rules for different
+methods — the more specific method wins: an exact method match beats a `GET`
+rule matching a `HEAD` request, which beats a plain, method-less rule. The
+Kernel does not combine groups from multiple matching rules; exactly one
+rule's group list is evaluated. See [Route](./route) for the complete
+path-pattern rules, root-path behavior, and validation details.
 
 If no rule matches, `Route.Allow` does not restrict the request. If a matching
 rule has an empty group list, its policy is also effectively public because an
 empty access policy allows everyone; an empty list does not mean “deny all”.
+See [Denying access](#denying-access) above for how to write a rule that
+actually rejects every request.
 
 `Route.Allow` is evaluated for every HTTP request by the outer auth middleware.
 When it rejects a request, it returns the normal JSON `401` or `403` response.
@@ -180,13 +212,13 @@ With the following configuration:
   staff = ["alice"]
 
 [Route.Allow]
-  "/api/services" = ["root"]
+  "/api/service/" = ["root"]
 
 [Services.hello]
   Allow = ["staff"]
 ```
 
-The `admin` user can pass the `/api/services` host-route rule because they are
+The `admin` user can pass the `/api/service/` host-route rule because they are
 in `root`. `alice` is authenticated but receives `403 Forbidden` for that
 path because they are not in `root`. An unauthenticated request receives
 `401 Unauthorized`.

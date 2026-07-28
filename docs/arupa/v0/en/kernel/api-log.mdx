@@ -1,0 +1,64 @@
+---
+title: "Logging"
+description: "Manage Arupa's log level and format over HTTP."
+---
+
+The Log capability manages the `[Log]` table described in
+[Logging](./config-logging) — `Level` and `Format`. All endpoints on this
+page require the `Log` capability to be enabled; see
+[Management API](./api) for how capabilities work.
+
+## Log level
+
+```http
+GET /api/log/level
+PATCH /api/log/level
+Content-Type: application/json
+
+{"level":"debug"}
+```
+
+`GET` returns the currently configured level. `PATCH` requires `level` and
+writes it to `[Log].Level`.
+
+```json
+{
+  "success": true,
+  "message": "Log level updated",
+  "data": { "level": "debug", "requires_restart": true }
+}
+```
+
+## Log format
+
+```http
+GET /api/log/format
+PATCH /api/log/format
+Content-Type: application/json
+
+{"format":"text"}
+```
+
+`GET` returns the currently configured format. `PATCH` requires `format`
+and writes it to `[Log].Format`.
+
+```json
+{
+  "success": true,
+  "message": "Log format updated",
+  "data": { "format": "text", "requires_restart": true }
+}
+```
+
+## Requires-restart
+
+The Kernel's logger is built once at startup from whatever `[Log]`
+contained at that time. Both endpoints compare the configured value
+against the one the running process actually applied (case-insensitively)
+and report the difference as `requires_restart`. This shows up on a plain
+`GET` too, not just right after a `PATCH` — if someone edited
+`config.toml` directly and reloaded, `GET /api/log/level` already reports
+`requires_restart: true` before any API call changes anything. It goes
+back to `false` once the configured value matches what's applied again,
+whether that's from restarting the Kernel or from writing the previous
+value back.

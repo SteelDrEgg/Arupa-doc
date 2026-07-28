@@ -131,30 +131,47 @@ transports](../service/routing).
 ## Reserved paths
 
 Before any service registers a route, the Kernel reserves a fixed set of
-HTTP paths for itself — the paths behind login, its own service management
-API, and the Socket.IO transport:
+HTTP paths for itself — the paths behind login, the whole [Management
+API](./api), and the Socket.IO transport:
 
 ```text
 /socket.io/
 /api/login
 /api/logout
 /api/check-auth
-/api/services/discovered
-/api/services/running
-/api/services/start
-/api/services/stop
-/api/services/restart
-/api/services/config
-/api/kernel/version
-/api/kernel/reload
+/api/user
+/api/user/
+/api/group
+/api/group/
+/api/page
+/api/page/
+/api/access
+/api/log/
+/api/network/
+/api/service
+/api/service/
+/api/kernel/
 ```
 
-These reservations go through the same router services use, so a service
-cannot register an HTTP route at exactly one of these patterns; the attempt
-fails the same way it would against a path another service already owns.
-Only paths implemented directly by the Kernel are reserved this way —
-everything else, including the pages a core service such as login serves,
-competes for path ownership like any other service route.
+A path without a trailing slash reserves that exact path only, matching the
+collection-level endpoint for that capability (`GET /api/user`,
+`GET /api/service`, and so on). A path ending in `/` reserves that pattern
+as a subtree route, covering the nested per-resource endpoints under it
+(`/api/user/{name}`, `/api/service/config/{name}`, and so on) — see
+[Subtrees](#subtrees) for what that pattern shape means. These reservations
+go through the same router services use, so a service cannot register an
+HTTP route at exactly one of these patterns; the attempt fails the same way
+it would against a path another service already owns. Only paths
+implemented directly by the Kernel are reserved this way — everything else,
+including the pages a core service such as login serves, competes for path
+ownership like any other service route.
+
+A capability being reserved has nothing to do with whether it's enabled.
+The Kernel claims these paths at startup regardless of the `[API]` table,
+so a service can never register a route that would collide with a
+capability's endpoints even while that capability is turned off; see
+[Management API](./api) for how the enabled/disabled state itself is
+enforced.
 
 This list is defined by the Kernel and may grow in future versions; treat it
 as the set of paths no service can claim, rather than a fixed, permanent

@@ -1,0 +1,235 @@
+---
+title: "服务管理"
+description: "通过 HTTP 管理 Arupa 服务。"
+---
+
+Service 能力管理服务生命周期的方方面面：发现包、启动和停止它们，以及读取或写入它们的配置。本页的所有接口都要求 `Service` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。关于什么是服务包、内核如何扫描 `ServiceDir`，请参阅[服务](./services)。
+
+## 发现与查看服务
+
+### 列出已发现的服务
+
+```http
+GET /api/service/discovered
+```
+
+该接口会在返回结果之前先扫描已配置的 `ServiceDir`，因此列表始终反映该目录当前的内容。响应是一个按服务名称索引的 `services` 列表，每个条目都把包元数据与生效配置、当前生命周期状态结合在一起。
+
+默认情况下，每个条目都会省略两个可能体积较大的字段：包 `metadata` 和配置 `params`。可以通过 `include` 查询参数添加其中之一或两者，支持逗号分隔、重复参数，或两者混用：
+
+```http
+GET /api/service/discovered?include=metadata,params
+GET /api/service/discovered?include=metadata&include=params
+```
+
+`metadata` 和 `params` 是仅有的两个受支持的取值，其他任何值都会导致 `400 Bad Request`。
+
+```json
+{
+  "success": true,
+  "message": "Discovered services fetched",
+  "data": {
+    "services": [
+      {
+        "name": "login",
+        "version": "0.2.0",
+        "type": "static",
+        "contract_version": 2,
+        "command": "",
+        "package_path": "services/login.plg",
+        "config": { "restart": "always" },
+        "metadata": { "Category": "core", "DisplayName": "Login Pages" },
+        "status": "running"
+      }
+    ]
+  }
+}
+```
+
+`config` 展示的是从 `[Services.default]` 和 `[Services.<name>]` 合并而来的生效配置。`config.params` 即使在加了 `include=metadata` 的响应里也会被隐藏——只有加上 `include=params` 才会返回它，这一点与 `config` 中的其他字段不同，因为 params 可能体积很大，也可能包含通过 `env://` 引入的密钥之类的值。
+
+### 列出正在运行的服务
+
+```http
+GET /api/service/running
+```
+
+与已发现列表不同，该接口不会扫描 `ServiceDir`——它直接返回内核的实时注册表，因此即使目录中当前存在从未启动过的包，它也只会展示实际正在运行的内容。该接口没有 `include` 参数：一个运行中的条目总是展示完整信息，包括它所注册的路由和传输。条目按 `instance_id` 索引，与[路由与传输](../service/routing)中描述的是同一份投影。
+
+```json
+{
+  "success": true,
+  "message": "Running services fetched",
+  "data": {
+    "services": [
+      {
+        "instance_id": "login",
+        "name": "login",
+        "version": "0.2.0",
+        "type": "static",
+        "path": "services/login.plg",
+        "transports": [
+          { "id": "login-pages", "type": "static", "source": "build/" }
+        ],
+        "routes": [
+          {
+            "id": "login-pages",
+            "transport": "login-pages",
+            "http": { "pattern": "/pages/", "access": {} }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 获取单个已发现的服务
+
+```http
+GET /api/service/detail/{name}
+```
+
+扫描 `ServiceDir` 的方式与 `GET /api/service/discovered` 相同，并返回名为 `{name}` 的单个条目；如果没有任何已发现的服务使用该名称，返回 `404 Not Found`。它接受与已发现列表相同的 `include` 查询参数。
+
+```json
+{
+  "success": true,
+  "message": "Service fetched",
+  "data": {
+    "name": "login",
+    "version": "0.2.0",
+    "type": "static",
+    "contract_version": 2,
+    "command": "",
+    "package_path": "services/login.plg",
+    "config": { "restart": "always" },
+    "status": "running"
+  }
+}
+```
+
+## 启动、停止或重启服务
+
+```http
+POST /api/service/start/{name}
+POST /api/service/stop/{name}
+POST /api/service/restart/{name}
+```
+
+服务名称是路径的一部分；这三个接口都不需要请求体。每个操作的响应都会把该名称原样返回：
+
+```json
+{
+  "success": true,
+  "message": "Service started",
+  "data": { "name": "login" }
+}
+```
+
+- `start` 按名称启动一个先前已扫描到的服务。
+- `stop` 卸载一个正在运行的服务，并移除其所有存活的主机绑定，包括它注册的每一个传输和路由。
+- `restart` 停止正在运行的实例，然后加载该服务名称对应的最新扫描包。
+
+这些操作不接受包路径；该服务必须已经出现在扫描结果中，所以如果不确定某个包是否已被扫描到，请先调用 `GET /api/service/discovered`（或 `GET /api/service/detail/{name}`）。`static` 服务在操作系统层面没有可以启动或停止的进程，但它仍会经历相同的生命周期：启动它会注册其声明的传输和路由，停止它会移除这些传输和路由。
+
+## 服务目录位置
+
+### 读取或修改扫描目录
+
+```http
+GET /api/service/dir
+PATCH /api/service/dir
+Content-Type: application/json
+
+{"service_dir":"services"}
+```
+
+`GET` 返回当前的 `service_dir`。`PATCH` 会在目录不存在时创建它，持久化新路径，并立即对其重新扫描——没有单独的扫描接口，而且 `GET /api/service/discovered` 本来每次调用都会扫描。响应会报告这次扫描发现了多少个包：
+
+```json
+{
+  "success": true,
+  "message": "Service directory updated",
+  "data": { "service_dir": "services", "discovered_service_count": 5 }
+}
+```
+
+修改 `service_dir` 永远不需要重启：每次发现调用都会重新读取它，而这次请求本身已经针对新路径触发了一次重新扫描。
+
+### 读取或修改临时目录
+
+```http
+GET /api/service/temp-dir
+PATCH /api/service/temp-dir
+Content-Type: application/json
+
+{"temp_dir":"tmp2"}
+```
+
+`ServiceTempDir` 是内核加载服务包时用来解压的目录。与 `service_dir` 不同，它只在服务管理器启动时被读取一次，所以在这里修改它，只会更新内核下次启动时会使用的值，而当前正在运行的内核仍会继续把包解压到旧目录，直到被重启为止。`GET` 和 `PATCH` 都会用一个 `requires_restart` 布尔字段报告这一点：
+
+```json
+{
+  "success": true,
+  "message": "Service temporary directory updated",
+  "data": { "temp_dir": "tmp2", "requires_restart": true }
+}
+```
+
+只要配置的 `temp_dir` 与运行中的进程在启动时实际生效的值不同，`requires_restart` 就是 `true`——包括在一次单纯的 `GET` 上也是如此，不仅仅是紧跟在 `PATCH` 之后。再次发送相同的值，或者重启内核，都会让它变回 `false`。
+
+## 单个服务的配置
+
+### 读取、更新或重置某个服务的配置
+
+```http
+GET /api/service/config/{name}
+PATCH /api/service/config/{name}
+DELETE /api/service/config/{name}
+```
+
+这些接口管理[服务配置](./config-services)中描述的 `[Services.<name>]` 表——`Restart`、`RunAsUser`、`Checksum` 和 `Allow`——并且与 `{name}` 当前是否对应一个已发现或正在运行的服务无关。`GET` 会报告该名称是否有明确的配置条目：
+
+```json
+{
+  "success": true,
+  "message": "Service config fetched",
+  "data": {
+    "name": "login",
+    "configured": true,
+    "restart": "always",
+    "allow": null
+  }
+}
+```
+
+如果 `{name}` 在 `Services` 中没有条目，响应就只是 `{"name": "login", "configured": false, "allow": null}`——该服务仍然会以 `[Services.default]` 运行，这个响应只是确认没有针对它的覆盖配置。
+
+`PATCH` 接受一个部分字段的对象，每个字段都是可选的，但至少要提供一个：
+
+```json
+{"restart": "always", "allow": ["staff"]}
+```
+
+每个字段在请求中有三种可能的状态：省略（保持不变）、显式 `null` 或空字符串（清除覆盖，回退到 `[Services.default]` 中对应字段的值），或者给出一个值（设置它）。`allow` 遵循同样的“省略/null/值”规则，唯一的区别是：显式的空列表（`"allow":[]`）算作一个值，而不是清除操作——它会把服务的 `Allow` 设置为空列表，这在该层是一个公开策略，而不是移除覆盖配置。`DELETE` 会移除整个 `[Services.<name>]` 条目，包括它的 `Params`，把该服务完全重置为默认配置。
+
+## 单个服务的参数
+
+```http
+GET /api/service/params/{name}
+PATCH /api/service/params/{name}
+Content-Type: application/json
+
+{"set":{"greeting":"hi"},"remove":["old_key"]}
+```
+
+管理 `[Services.<name>.Params]`，也就是在注册时传递给服务的任意键值字符串。`GET` 返回当前的映射，如果没有设置过任何内容，则为 `null`。`PATCH` 会把 `set` 和 `remove` 作为同一次更新一起应用；两者中至少要有一个不为空。这两个调用都与 `{name}` 是否对应一个已发现的服务无关，与上面的配置接口一样。
+
+```json
+{
+  "success": true,
+  "message": "Service params updated",
+  "data": { "name": "login", "params": { "greeting": "hi" } }
+}
+```

@@ -1,0 +1,94 @@
+---
+title: "User accounts"
+description: "Manage Arupa user accounts over HTTP."
+---
+
+The User capability manages entries in the `Users` table — the credential
+store checked at login. It does not manage group membership; see
+[Groups](./api-group) for that. All endpoints on this page require the
+`User` capability to be enabled; see [Management API](./api) for how
+capabilities work.
+
+## List users
+
+```http
+GET /api/user
+```
+
+Returns every configured user together with the groups they belong to,
+sorted by name. Password hashes are never included in a response.
+
+```json
+{
+  "success": true,
+  "message": "Users fetched",
+  "data": {
+    "users": [
+      { "name": "alice", "groups": ["administrators", "operators"] },
+      { "name": "bob", "groups": [] }
+    ]
+  }
+}
+```
+
+## Get a user
+
+```http
+GET /api/user/{name}
+```
+
+Returns a single user the same way `GET /api/user` does, or `404 Not Found`
+if no user with that name exists.
+
+```json
+{
+  "success": true,
+  "message": "User fetched",
+  "data": { "name": "alice", "groups": ["administrators", "operators"] }
+}
+```
+
+## Create or update a user
+
+```http
+PUT /api/user/{name}
+Content-Type: application/json
+
+{"password":"a new password"}
+```
+
+`password` is required and is hashed before being written to `Users`. This
+call is also how you change an existing user's password — there's no
+separate password-change endpoint. It creates the user if `{name}` doesn't
+exist yet, or overwrites the stored hash if it does.
+
+This endpoint never touches group membership. A brand-new user starts in
+whatever groups already list their name in `Groups` (normally none), and
+you add or remove them with [`PATCH /api/group/{name}`](./api-group).
+
+```json
+{
+  "success": true,
+  "message": "User updated",
+  "data": { "name": "alice", "groups": [] }
+}
+```
+
+## Delete a user
+
+```http
+DELETE /api/user/{name}
+```
+
+Removes the user's entry from `Users`. It does not remove the name from
+any `Groups` list — a deleted user's name can be left behind as a stale
+member of a group, which is harmless since a nonexistent user can never
+authenticate as that name again.
+
+```json
+{
+  "success": true,
+  "message": "User deleted",
+  "data": { "name": "alice" }
+}
+```

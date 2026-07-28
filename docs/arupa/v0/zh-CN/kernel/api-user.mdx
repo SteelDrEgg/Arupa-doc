@@ -1,0 +1,80 @@
+---
+title: "用户账户"
+description: "通过 HTTP 管理 Arupa 用户账户。"
+---
+
+User 能力管理 `Users` 表中的条目——也就是登录时校验的凭据存储。它不管理组成员身份，这部分请参阅[组](./api-group)。本页的所有接口都要求 `User` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。
+
+## 列出用户
+
+```http
+GET /api/user
+```
+
+返回每个已配置用户及其所属的组，按名称排序。响应中永远不会包含密码哈希。
+
+```json
+{
+  "success": true,
+  "message": "Users fetched",
+  "data": {
+    "users": [
+      { "name": "alice", "groups": ["administrators", "operators"] },
+      { "name": "bob", "groups": [] }
+    ]
+  }
+}
+```
+
+## 获取单个用户
+
+```http
+GET /api/user/{name}
+```
+
+返回单个用户，格式与 `GET /api/user` 相同；如果不存在该名称的用户，返回 `404 Not Found`。
+
+```json
+{
+  "success": true,
+  "message": "User fetched",
+  "data": { "name": "alice", "groups": ["administrators", "operators"] }
+}
+```
+
+## 创建或更新用户
+
+```http
+PUT /api/user/{name}
+Content-Type: application/json
+
+{"password":"a new password"}
+```
+
+`password` 是必需的，写入 `Users` 之前会先经过哈希处理。修改已有用户密码也是通过这个调用完成的——没有单独的改密码接口。如果 `{name}` 尚不存在，这个调用会创建该用户；如果已存在，则覆盖已保存的哈希值。
+
+这个接口不会触及组成员身份。一个全新的用户一开始属于哪些组，取决于 `Groups` 中已有哪些组列出了这个名字（通常没有），要添加或移除成员身份，请使用 [`PATCH /api/group/{name}`](./api-group)。
+
+```json
+{
+  "success": true,
+  "message": "User updated",
+  "data": { "name": "alice", "groups": [] }
+}
+```
+
+## 删除用户
+
+```http
+DELETE /api/user/{name}
+```
+
+从 `Users` 中移除该用户的条目。它不会把这个名字从任何 `Groups` 列表中移除——一个被删除的用户名可能会作为某个组的失效成员遗留下来，但这是无害的，因为一个不存在的用户永远无法再以该名字通过身份验证。
+
+```json
+{
+  "success": true,
+  "message": "User deleted",
+  "data": { "name": "alice" }
+}
+```

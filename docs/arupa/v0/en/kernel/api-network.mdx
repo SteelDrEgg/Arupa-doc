@@ -1,0 +1,63 @@
+---
+title: "Network settings"
+description: "Manage Arupa's listen address and TLS setting over HTTP."
+---
+
+The Network capability manages the top-level `Listen` and `TLS` fields
+described in [Kernel](./config-kernel). All endpoints on this page require
+the `Network` capability to be enabled; see [Management API](./api) for
+how capabilities work.
+
+## Listen address
+
+```http
+GET /api/network/listen
+PATCH /api/network/listen
+Content-Type: application/json
+
+{"listen":"127.0.0.1:8080"}
+```
+
+`GET` returns the currently configured address. `PATCH` requires `listen`
+and writes it to the top-level `Listen` field.
+
+```json
+{
+  "success": true,
+  "message": "Listen address updated",
+  "data": { "listen": "127.0.0.1:8080", "requires_restart": true }
+}
+```
+
+## TLS
+
+```http
+GET /api/network/tls
+PATCH /api/network/tls
+Content-Type: application/json
+
+{"tls":true}
+```
+
+`GET` returns the currently configured setting. `PATCH` requires `tls` and
+must not send `null`; it writes the value to the top-level `TLS` field.
+
+```json
+{
+  "success": true,
+  "message": "TLS setting updated",
+  "data": { "tls": true, "requires_restart": true }
+}
+```
+
+## Requires-restart
+
+The Kernel binds its listener and, if enabled, builds its self-signed TLS
+certificate once at startup from whatever `Listen` and `TLS` contained at
+that time — see [Kernel](./config-kernel) for what enabling `TLS` does.
+Both endpoints compare the configured value against the one the running
+process actually applied and report the difference as `requires_restart`.
+This shows up on a plain `GET` too, not just right after a `PATCH`. It
+goes back to `false` once the configured value matches what's applied
+again, whether that's from restarting the Kernel or from writing the
+previous value back.

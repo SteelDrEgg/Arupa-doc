@@ -1,0 +1,73 @@
+---
+title: "访问规则"
+description: "通过 HTTP 管理 Arupa 的主机访问规则。"
+---
+
+Access 能力管理 `Route.Allow`——也就是[访问控制](./config-access)中描述的主机级访问规则。本页的所有接口都要求 `Access` 能力已启用；关于能力开关的工作方式，请参阅[管理 API](./api)。
+
+## 带方法限定的规则
+
+一条规则通常适用于某个路径下的所有 HTTP 方法，与直接在 `[Route.Allow]` 下写 `"/api/"`效果相同。这个 API 也可以把方法与路径分开传入，从而把一条规则限定到某一个方法上，写入配置后就是一个 `METHOD:/path` 形式的键（例如 `"PUT:/api/user/"`）。带方法限定的规则和同一路径下不带方法限定的规则是两条相互独立的记录——设置其中一条不会影响另一条。当两者同时匹配同一个请求时，更具体的那一条获胜：精确的方法匹配胜过 `GET` 规则匹配 `HEAD` 请求，而后者又胜过不带方法限定的规则；这个优先级只在这些规则已经共享同一个最长匹配路径的前提下才会用到，详见[访问控制](./config-access)。
+
+`groups` 为空（`[]`）会让规则实际上变成公开的，而不是拒绝所有人——如果想写出真正拒绝所有请求的规则，请参阅[拒绝访问](./config-access#拒绝访问)。
+
+## 列出访问规则
+
+```http
+GET /api/access
+```
+
+返回每一条已配置的规则，先按路径排序，再按方法排序。
+
+```json
+{
+  "success": true,
+  "message": "Access rules fetched",
+  "data": {
+    "rules": [
+      { "path": "/api/", "groups": ["staff"] },
+      { "method": "PUT", "path": "/api/user/", "groups": ["administrators"] }
+    ]
+  }
+}
+```
+
+对于适用于所有方法的规则，`method` 会被省略。
+
+## 设置访问规则
+
+```http
+PUT /api/access
+Content-Type: application/json
+
+{"method":"PUT","path":"/api/user/","groups":["administrators"]}
+```
+
+`path` 是必需的。`groups` 是必需的，且不能为 `null`；空列表（`"groups":[]`）是合法的，会让该规则实际上变成公开的，参见[访问控制](./config-access)——空的组列表并不代表“拒绝所有”。`method` 是可选的；省略它就会设置一条适用于 `path` 下所有 HTTP 方法的规则。
+
+```json
+{
+  "success": true,
+  "message": "Access rule updated",
+  "data": { "method": "PUT", "path": "/api/user/", "groups": ["administrators"] }
+}
+```
+
+## 删除访问规则
+
+```http
+DELETE /api/access
+Content-Type: application/json
+
+{"method":"PUT","path":"/api/user/"}
+```
+
+删除与 `path` 和 `method` 完全匹配的规则（如果省略 `method`，则删除该路径下不带方法限定的规则）。请求体中如果携带 `groups`，会被忽略。与列表和更新接口的响应不同，这个响应总是包含 `method` 字段，当被删除的规则不带方法限定时，该字段是空字符串：
+
+```json
+{
+  "success": true,
+  "message": "Access rule deleted",
+  "data": { "method": "PUT", "path": "/api/user/" }
+}
+```
